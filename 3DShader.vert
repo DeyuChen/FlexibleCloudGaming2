@@ -1,8 +1,8 @@
 #version 300 es
 in vec3 in_Position;
 in vec3 in_Normal;
-in lowp vec3 in_Color;
 in vec2 in_TexCoord;
+in vec3 in_Color;
 
 out vec3 ex_FragPos;
 out vec3 ex_Normal;
@@ -18,6 +18,6 @@ void main(void){
     ex_Normal = mat3(transpose(inverse(model))) * in_Normal;
     gl_Position = projection * view * vec4(ex_FragPos, 1.0);
     
-    ex_Color = in_Color / 255.0;
+    ex_Color = in_Color;
     ex_TexCoord = in_TexCoord;
 }

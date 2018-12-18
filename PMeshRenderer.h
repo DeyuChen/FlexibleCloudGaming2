@@ -21,10 +21,12 @@ private:
     hh::PMeshIter pmi;
 
     void init_buffer();
-    void update_buffer();
+    void update_buffer_triangle();
+    void update_buffer_strip();
 
     bool buffer_dirty;
 
+    int numTex;
     GLuint VBO;
     std::vector<GLuint> VAO;
     std::vector<GLuint> IBO;
