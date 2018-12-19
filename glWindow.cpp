@@ -158,6 +158,8 @@ void glWindow::render(){
     }
 
     glUseProgram(0);
+    
+    SDL_GL_SwapWindow(window);
 }
 
 int glWindow::initOpenGL(){
@@ -178,8 +180,8 @@ int glWindow::initOpenGL(){
 
     glBindAttribLocation(renderProgram.id, 0, "in_Position");
     glBindAttribLocation(renderProgram.id, 1, "in_Normal");
-    glBindAttribLocation(renderProgram.id, 2, "in_Color");
-    glBindAttribLocation(renderProgram.id, 3, "in_TexCoord");
+    glBindAttribLocation(renderProgram.id, 2, "in_TexCoord");
+    glBindAttribLocation(renderProgram.id, 3, "in_Color");
 
     glLinkProgram(renderProgram.id);
 
