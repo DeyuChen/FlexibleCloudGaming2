@@ -4,7 +4,7 @@ INC = -Iinclude/libHh
 CFLAGS = -c -std=c++11 
 LDFLAGS = -lSDL2 -lglut -lGL -lGLU -lglfw -lGLEW -lavformat -lavcodec -lavutil -lswscale -lSDL2_image -lHh -lpthread 
 SOURCES = glWindow.cpp PMeshRenderer.cpp
-OBJECTS = main.o $(SOURCES:.cpp=.o)
+OBJECTS = client.o $(SOURCES:.cpp=.o)
 
 EXECUTABLE = a.out
 

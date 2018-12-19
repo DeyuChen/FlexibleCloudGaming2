@@ -2,6 +2,9 @@
 #include <iostream>
 #include <fstream>
 
+const float MIN_DISTANCE = 0.1f;
+const float MAX_DISTANCE = 100.0f;
+
 using namespace std;
 
 bool glWindow::createWindow(const char* title, int _width, int _height){
@@ -32,6 +35,13 @@ bool glWindow::createWindow(const char* title, int _width, int _height){
         printf("Warning: Unable to set VSync! SDL Error: %s\n", SDL_GetError());
     }
 
+    glViewport(0, 0, width, height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45.0f, (GLfloat)width / (GLfloat)height, MIN_DISTANCE, MAX_DISTANCE);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
     if (glewInit() != GLEW_OK || !initOpenGL()){
         killWindow();
         return false;
@@ -52,74 +62,83 @@ void glWindow::killWindow(){
 void glWindow::mouseMotion(int x, int y){
     float RelX = x / (float)width;
     float RelY = y / (float)height;
-    
+
     azimuth += (RelX * 180);
     elevation += (RelY * 180);
 }
 
-/*
 void glWindow::keyPress(Sint32 key, int x, int y){
     switch(key){
         case SDLK_w:
             viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
             viewX -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
             break;
-            
+
         case SDLK_d:
             viewZ -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
             viewX -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
             break;
-            
+
         case SDLK_s:
             viewZ -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
             viewX += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
             break;
-            
+
         case SDLK_a:
             viewZ += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
             viewX += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
             break;
-            
+
+        case SDLK_e:
+            viewY += moveSpeed;
+            break;
+
+        case SDLK_q:
+            viewY -= moveSpeed;
+            break;
+
         case SDLK_PAGEUP:
-            for (int i = 0; i < pmesh_list.size(); i++)
-                changeMesh(pmesh_list[i].mesh, 5, true);
+            for (auto pmesh : pmeshes){
+                pmesh->goto_vpercentage(min(100, pmesh->get_vpercentage() + 5));
+            }
             break;
-            
+
         case SDLK_PAGEDOWN:
-            for (int i = 0; i < pmesh_list.size(); i++)
-                changeMesh(pmesh_list[i].mesh, -5, true);
+            for (auto pmesh : pmeshes){
+                pmesh->goto_vpercentage(max(0, pmesh->get_vpercentage() - 5));
+            }
             break;
-            
+
         case SDLK_UP:
-            for (int i = 0; i < pmesh_list.size(); i++)
-                changeMesh(pmesh_list[i].mesh, 1, false);
+            for (auto pmesh : pmeshes){
+                pmesh->next();
+            }
             break;
-            
+
         case SDLK_DOWN:
-            for (int i = 0; i < pmesh_list.size(); i++)
-                changeMesh(pmesh_list[i].mesh, -1, false);
+            for (auto pmesh : pmeshes){
+                pmesh->prev();
+            }
             break;
-            
+
+        /*
         case SDLK_m:
             renderingMode = (renderingMode + 1) % 3;
             break;
-
         case SDLK_n:
             renderingMode = (renderingMode + 2) % 3;
             break;
-            
         case SDLK_t:
             conf.texture = !conf.texture;
             break;
+        */
     }
 }
-*/
 
 int glWindow::addPMesh(const hh::PMesh& pm){
     int id = pmeshes.size();
 
     PMeshRenderer *pmr = new PMeshRenderer(pm);
-    while (pmr->next()){}
     pmeshes.push_back(pmr);
 
     return id;

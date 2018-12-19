@@ -4,12 +4,10 @@
 
 using namespace std;
 
-void hh::AWMesh::ogl_render_faces_individually(const hh::PMeshInfo& pminfo, int usetexture){
-    
-}
-
 PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
     numTex = pmi._materials.num();
+    while (pmi.next()){}
+    numVertices = pmi._vertices.num();
     init_buffer();
     buffer_dirty = true;
 }
@@ -18,17 +16,23 @@ PMeshRenderer::~PMeshRenderer(){
 }
 
 bool PMeshRenderer::next(){
-    bool result = pmi.next();
-    if (result)
-        buffer_dirty = true;
-    return result;
+    buffer_dirty = pmi.next();
+    return buffer_dirty;
 }
 
 bool PMeshRenderer::prev(){
-    bool result = pmi.prev();
-    if (result)
-        buffer_dirty = true;
-    return result;
+    buffer_dirty = pmi.prev();
+    return buffer_dirty;
+}
+
+bool PMeshRenderer::goto_vpercentage(int percentage){
+    int nv = numVertices * percentage / 100;
+    buffer_dirty = pmi.goto_nvertices(nv);
+    return buffer_dirty;
+}
+
+int PMeshRenderer::get_vpercentage(){
+    return pmi._vertices.num() * 100 / numVertices;
 }
 
 int PMeshRenderer::nfaces(){

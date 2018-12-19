@@ -13,6 +13,8 @@ public:
     ~PMeshRenderer();
     bool next();
     bool prev();
+    bool goto_vpercentage(int percentage);
+    int get_vpercentage();
     int nfaces();
     void render(GLuint pid);
 
@@ -27,6 +29,7 @@ private:
     bool buffer_dirty;
 
     int numTex;
+    int numVertices;
     GLuint VBO;
     std::vector<GLuint> VAO;
     std::vector<GLuint> IBO;
