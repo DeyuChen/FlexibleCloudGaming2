@@ -2,6 +2,7 @@
 #define GLWINDOW_H
 
 #include "glHeader.h"
+#include "PMeshRenderer.h"
 #include <string>
 
 struct ShaderProgram {
@@ -22,8 +23,11 @@ public:
     bool createWindow(const char* title, int _width, int _height);
     void killWindow();
 
-    void mouseMotion(int x, int y, bool leftButton, bool rightButton);
+    void mouseMotion(int x, int y);
     void keyPress(Sint32 key, int x, int y);
+
+    int addPMesh(const hh::PMesh& pm);
+
 
     void render();
 
@@ -42,6 +46,8 @@ private:
 
     ShaderProgram renderProgram;
     ShaderProgram warpProgram;
+
+    std::vector<PMeshRenderer*> pmeshes;
 };
 
 #endif

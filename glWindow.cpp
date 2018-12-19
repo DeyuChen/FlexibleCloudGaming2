@@ -49,8 +49,7 @@ void glWindow::killWindow(){
     SDL_Quit();
 }
 
-/*
-void glWindow::mouseMotion(int x, int y, bool leftButton, bool rightButton){
+void glWindow::mouseMotion(int x, int y){
     float RelX = x / (float)width;
     float RelY = y / (float)height;
     
@@ -58,6 +57,7 @@ void glWindow::mouseMotion(int x, int y, bool leftButton, bool rightButton){
     elevation += (RelY * 180);
 }
 
+/*
 void glWindow::keyPress(Sint32 key, int x, int y){
     switch(key){
         case SDLK_w:
@@ -114,6 +114,51 @@ void glWindow::keyPress(Sint32 key, int x, int y){
     }
 }
 */
+
+int glWindow::addPMesh(const hh::PMesh& pm){
+    int id = pmeshes.size();
+
+    PMeshRenderer *pmr = new PMeshRenderer(pm);
+    while (pmr->next()){}
+    pmeshes.push_back(pmr);
+
+    return id;
+}
+
+void glWindow::render(){
+    glUseProgram(renderProgram.id);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepth(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // Set lookat point
+    glLoadIdentity();
+    gluLookAt(0, 0, 0, 0, 0, -1, 0, 1, 0);
+
+    glRotatef(elevation, 1, 0, 0);
+    glRotatef(azimuth, 0, 1, 0);
+    glTranslatef(viewX, viewY, viewZ);
+
+    glm::mat4 view, projection;
+    glGetFloatv(GL_MODELVIEW_MATRIX, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(renderProgram.id, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glGetFloatv(GL_PROJECTION_MATRIX, glm::value_ptr(projection));
+    glUniformMatrix4fv(glGetUniformLocation(renderProgram.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    
+    glm::vec3 viewPos(viewX, viewY, viewZ);
+    glm::vec3 lightPos(0.0, 0.0, 10.0);
+    glm::vec3 lightColor(1.0, 1.0, 1.0);
+    glUniform3fv(glGetUniformLocation(renderProgram.id, "viewPos"), 1, glm::value_ptr(viewPos));
+    glUniform3fv(glGetUniformLocation(renderProgram.id, "lightPos"), 1, glm::value_ptr(lightPos));
+    glUniform3fv(glGetUniformLocation(renderProgram.id, "lightColor"), 1, glm::value_ptr(lightColor));
+
+    for (auto pmesh : pmeshes){
+        pmesh->render(renderProgram.id);
+    }
+
+    glUseProgram(0);
+}
 
 int glWindow::initOpenGL(){
     glClearColor(0.0f, 0.0f, 0.0f, 0.5f);

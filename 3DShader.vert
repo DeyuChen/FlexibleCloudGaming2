@@ -12,12 +12,17 @@ out vec2 ex_TexCoord;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform bool hasTex;
+uniform bool hasColor;
 
 void main(void){
     ex_FragPos = vec3(model * vec4(in_Position, 1.0));
     ex_Normal = mat3(transpose(inverse(model))) * in_Normal;
     gl_Position = projection * view * vec4(ex_FragPos, 1.0);
-    
-    ex_Color = in_Color;
-    ex_TexCoord = in_TexCoord;
+
+    if (hasTex){
+        ex_TexCoord = in_TexCoord;
+    } else if (hasColor){
+        ex_Color = in_Color;
+    }
 }

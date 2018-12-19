@@ -1,4 +1,5 @@
 #include "PMeshRenderer.h"
+#include "GMesh.h"
 #include <iostream>
 
 using namespace std;
@@ -10,6 +11,7 @@ void hh::AWMesh::ogl_render_faces_individually(const hh::PMeshInfo& pminfo, int 
 PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
     numTex = pmi._materials.num();
     init_buffer();
+    buffer_dirty = true;
 }
 
 PMeshRenderer::~PMeshRenderer(){
@@ -33,10 +35,33 @@ int PMeshRenderer::nfaces(){
     return pmi._faces.num();
 }
 
-void PMeshRenderer::render(){
+void PMeshRenderer::render(GLuint pid){
     if (buffer_dirty){
         update_buffer_triangle();
     }
+
+    glm::mat4 model;
+
+    glPushMatrix();
+    glLoadIdentity();
+    glTranslatef(0, 0, 0);
+    glGetFloatv(GL_MODELVIEW_MATRIX, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(pid, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(glGetUniformLocation(pid, "hasTex"), pmrs._info._has_uv);
+    glUniform1i(glGetUniformLocation(pid, "hasColor"), pmrs._info._has_rgb);
+    for (int matid = 0; matid < pmi._materials.num(); matid++){
+        if (pmrs._info._has_uv){
+            glActiveTexture(GL_TEXTURE0);
+            //glBindTexture(GL_TEXTURE_2D, pmesh_list[m].mesh->getMesh()->getTexID(i - 1));
+        } else if (!pmrs._info._has_rgb){
+            glUniform3fv(glGetUniformLocation(pid, "defaultColor"), 1, defaultColors[matid].data());
+        }
+
+        glBindVertexArray(VAO[matid]);
+        glDrawElements(GL_TRIANGLES, indSizes[matid], GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+    }
+    glPopMatrix();
 }
 
 void PMeshRenderer::init_buffer(){
@@ -46,6 +71,17 @@ void PMeshRenderer::init_buffer(){
     indSizes.resize(numTex, 0);
     glGenVertexArrays(numTex, VAO.data());
     glGenBuffers(numTex, IBO.data());
+    
+    defaultColors.reserve(pmi._materials.num());
+    for (int matid = 0; matid < pmi._materials.num(); matid++){
+        const string& str = pmi._materials.get(matid);
+        hh::Vec3<float> co;
+        if (!hh::parse_key_vec(str.c_str(), "rgb", co)) {
+            // co = V(.8f, .5f, .4f);
+            co = hh::V(.6f, .6f, .6f);
+        }
+        defaultColors.push(co);
+    }
 }
 
 void PMeshRenderer::update_buffer_triangle(){
@@ -108,4 +144,6 @@ void PMeshRenderer::update_buffer_triangle(){
 
         glBindVertexArray(0);
     }
+    
+    buffer_dirty = false;
 }

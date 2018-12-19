@@ -14,7 +14,7 @@ public:
     bool next();
     bool prev();
     int nfaces();
-    void render();
+    void render(GLuint pid);
 
 private:
     hh::PMeshRStream pmrs;
@@ -31,6 +31,7 @@ private:
     std::vector<GLuint> VAO;
     std::vector<GLuint> IBO;
     std::vector<int> indSizes;
+    hh::Array<hh::A3dColor> defaultColors;
 };
 
 #endif
