@@ -3,7 +3,9 @@
 
 #include "glHeader.h"
 #include "PMeshRenderer.h"
+#include "common.h"
 #include <string>
+#include <queue>
 
 struct ShaderProgram {
     GLuint id;
@@ -20,20 +22,27 @@ public:
 
     ~glWindow(){};
     
-    bool createWindow(const char* title, int _width, int _height);
-    void killWindow();
+    bool create_window(const char* title, int _width, int _height);
+    void kill_window();
 
-    void mouseMotion(int x, int y);
-    void keyPress(Sint32 key, int x, int y);
+    void mouse_motion(int x, int y);
+    void key_press(Sint32 key, int x, int y);
 
-    int addPMesh(const hh::PMesh& pm);
+    int add_pmesh(const hh::PMesh& pm);
+    void remove_pmesh(int id);
 
-
-    void render();
+    void render(MeshMode mode);
+    void render_diff(unsigned char* buf1, unsigned char* buf2);
+    void display();
+    void get_pixels(unsigned char* buf);
 
 private:
-    int initOpenGL();
-    GLuint loadShaderFromFile(std::string filename, GLenum shaderType);
+    bool init_render_program();
+    bool init_warp_program();
+    bool init_diff_program();
+    bool init_OpenGL();
+    
+    GLuint load_shader_from_file(std::string filename, GLenum shaderType);
 
     SDL_Window* window;
     SDL_GLContext context;
@@ -46,8 +55,13 @@ private:
 
     ShaderProgram renderProgram;
     ShaderProgram warpProgram;
+    ShaderProgram diffProgram;
+
+    VBufferInfo diffBuffer;
 
     std::vector<PMeshRenderer*> pmeshes;
+
+    std::priority_queue<int, std::vector<int>, std::greater<int>> available_meshID;
 };
 
 #endif

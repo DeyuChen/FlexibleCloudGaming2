@@ -6,29 +6,41 @@ using namespace std;
 
 PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
     numTex = pmi._materials.num();
+
     while (pmi.next()){}
     numVertices = pmi._vertices.num();
-    init_buffer();
-    buffer_dirty = true;
+
+    // number of floats per vertex
+    // minimum point * 3 + normal * 3
+    vertexDataSize = 6;
+    if (pmrs._info._has_uv){
+        vertexDataSize += 2;
+    } else if (pmrs._info._has_rgb){
+        vertexDataSize += 3;
+    }
+
+    init_buffer(MeshMode::simp);
+    init_buffer(MeshMode::full);
+    init_default_colors();
 }
 
 PMeshRenderer::~PMeshRenderer(){
 }
 
 bool PMeshRenderer::next(){
-    buffer_dirty = pmi.next();
-    return buffer_dirty;
+    simpBuffer.dirty = pmi.next();
+    return simpBuffer.dirty;
 }
 
 bool PMeshRenderer::prev(){
-    buffer_dirty = pmi.prev();
-    return buffer_dirty;
+    simpBuffer.dirty = pmi.prev();
+    return simpBuffer.dirty;
 }
 
 bool PMeshRenderer::goto_vpercentage(int percentage){
     int nv = numVertices * percentage / 100;
-    buffer_dirty = pmi.goto_nvertices(nv);
-    return buffer_dirty;
+    simpBuffer.dirty = pmi.goto_nvertices(nv);
+    return simpBuffer.dirty;
 }
 
 int PMeshRenderer::get_vpercentage(){
@@ -39,9 +51,16 @@ int PMeshRenderer::nfaces(){
     return pmi._faces.num();
 }
 
-void PMeshRenderer::render(GLuint pid){
-    if (buffer_dirty){
-        update_buffer_triangle();
+void PMeshRenderer::render(GLuint pid, MeshMode mode){
+    VBufferInfo *vBuffer;
+    if (mode == simp){
+        vBuffer = &simpBuffer;
+    } else if (mode == full){
+        vBuffer = &fullBuffer;
+    }
+
+    if (vBuffer->dirty){
+        update_buffer_triangle(mode);
     }
 
     glm::mat4 model;
@@ -61,21 +80,54 @@ void PMeshRenderer::render(GLuint pid){
             glUniform3fv(glGetUniformLocation(pid, "defaultColor"), 1, defaultColors[matid].data());
         }
 
-        glBindVertexArray(VAO[matid]);
-        glDrawElements(GL_TRIANGLES, indSizes[matid], GL_UNSIGNED_INT, 0);
+        glBindVertexArray(vBuffer->VAO[matid]);
+        glDrawElements(GL_TRIANGLES, vBuffer->indSizes[matid], GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
     glPopMatrix();
 }
 
-void PMeshRenderer::init_buffer(){
-    glGenBuffers(1, &VBO);
-    VAO.resize(numTex);
-    IBO.resize(numTex);
-    indSizes.resize(numTex, 0);
-    glGenVertexArrays(numTex, VAO.data());
-    glGenBuffers(numTex, IBO.data());
-    
+void PMeshRenderer::init_buffer(MeshMode mode){
+    VBufferInfo *vBuffer;
+    if (mode == simp){
+        vBuffer = &simpBuffer;
+    } else if (mode == full){
+        vBuffer = &fullBuffer;
+    }
+
+    vBuffer->VBO.resize(1);
+    vBuffer->VAO.resize(numTex);
+    vBuffer->IBO.resize(numTex);
+    vBuffer->indSizes.resize(numTex, 0);
+    glGenBuffers(1, vBuffer->VBO.data());
+    glGenVertexArrays(numTex, vBuffer->VAO.data());
+    glGenBuffers(numTex, vBuffer->IBO.data());
+
+    for (int i = 0; i < numTex; i++){
+        glBindVertexArray(vBuffer->VAO[i]);
+
+        glBindBuffer(GL_ARRAY_BUFFER, vBuffer->VBO[0]);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat)));
+        glEnableVertexAttribArray(1);
+        if (pmrs._info._has_uv){
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(6 * sizeof(GLfloat)));
+            glEnableVertexAttribArray(2);
+        } else if (pmrs._info._has_rgb){
+            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(6 * sizeof(GLfloat)));
+            glEnableVertexAttribArray(3);
+        }
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vBuffer->IBO[i]);
+
+        glBindVertexArray(0);
+    }
+
+    vBuffer->dirty = true;
+}
+
+void PMeshRenderer::init_default_colors(){
     defaultColors.reserve(pmi._materials.num());
     for (int matid = 0; matid < pmi._materials.num(); matid++){
         const string& str = pmi._materials.get(matid);
@@ -88,14 +140,15 @@ void PMeshRenderer::init_buffer(){
     }
 }
 
-void PMeshRenderer::update_buffer_triangle(){
-    // number of floats per vertex
-    // minimum point * 3 + normal * 3
-    int vertexDataSize = 6;
-    if (pmrs._info._has_uv){
-        vertexDataSize += 2;
-    } else if (pmrs._info._has_rgb){
-        vertexDataSize += 3;
+void PMeshRenderer::update_buffer_triangle(MeshMode mode){
+    VBufferInfo *vBuffer;
+    int nv;
+    if (mode == simp){
+        vBuffer = &simpBuffer;
+    } else if (mode == full){
+        vBuffer = &fullBuffer;
+        nv = pmi._vertices.num();
+        pmi.goto_nvertices(numVertices);
     }
 
     vector<GLfloat> wedges(vertexDataSize * pmi._wedges.num());
@@ -112,7 +165,7 @@ void PMeshRenderer::update_buffer_triangle(){
         }
         i += vertexDataSize;
     }
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, vBuffer->VBO[0]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * wedges.size(), wedges.data(), GL_STATIC_DRAW);
 
     vector<vector<GLuint>> indices(numTex);
@@ -127,27 +180,14 @@ void PMeshRenderer::update_buffer_triangle(){
     }
 
     for (i = 0; i < numTex; i++){
-        glBindVertexArray(VAO[i]);
-
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), 0);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat)));
-        glEnableVertexAttribArray(1);
-        if (pmrs._info._has_uv){
-            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(6 * sizeof(GLfloat)));
-            glEnableVertexAttribArray(2);
-        } else if (pmrs._info._has_rgb){
-            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexDataSize * sizeof(GLfloat), (void*)(6 * sizeof(GLfloat)));
-            glEnableVertexAttribArray(3);
-        }
-
-        indSizes[i] = indices[i].size();
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO[i]);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indSizes[i], indices[i].data(), GL_STATIC_DRAW);
-
-        glBindVertexArray(0);
+        vBuffer->indSizes[i] = indices[i].size();
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vBuffer->IBO[i]);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * vBuffer->indSizes[i], indices[i].data(), GL_STATIC_DRAW);
     }
     
-    buffer_dirty = false;
+    vBuffer->dirty = false;
+
+    if (mode == full){
+        pmi.goto_nvertices(nv);
+    }
 }

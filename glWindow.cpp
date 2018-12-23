@@ -7,7 +7,7 @@ const float MAX_DISTANCE = 100.0f;
 
 using namespace std;
 
-bool glWindow::createWindow(const char* title, int _width, int _height){
+bool glWindow::create_window(const char* title, int _width, int _height){
     width = _width;
     height = _height;
 
@@ -42,15 +42,15 @@ bool glWindow::createWindow(const char* title, int _width, int _height){
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    if (glewInit() != GLEW_OK || !initOpenGL()){
-        killWindow();
+    if (glewInit() != GLEW_OK || !init_OpenGL()){
+        kill_window();
         return false;
     }
 
     return true;
 }
 
-void glWindow::killWindow(){
+void glWindow::kill_window(){
     if (window != NULL){
         SDL_DestroyWindow(window);
         window = NULL;
@@ -59,7 +59,7 @@ void glWindow::killWindow(){
     SDL_Quit();
 }
 
-void glWindow::mouseMotion(int x, int y){
+void glWindow::mouse_motion(int x, int y){
     float RelX = x / (float)width;
     float RelY = y / (float)height;
 
@@ -67,7 +67,7 @@ void glWindow::mouseMotion(int x, int y){
     elevation += (RelY * 180);
 }
 
-void glWindow::keyPress(Sint32 key, int x, int y){
+void glWindow::key_press(Sint32 key, int x, int y){
     switch(key){
         case SDLK_w:
             viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
@@ -135,16 +135,32 @@ void glWindow::keyPress(Sint32 key, int x, int y){
     }
 }
 
-int glWindow::addPMesh(const hh::PMesh& pm){
-    int id = pmeshes.size();
-
+int glWindow::add_pmesh(const hh::PMesh& pm){
+    int id;
     PMeshRenderer *pmr = new PMeshRenderer(pm);
-    pmeshes.push_back(pmr);
+
+    if (available_meshID.empty()){
+        id = pmeshes.size();
+        pmeshes.push_back(pmr);
+    } else {
+        id = available_meshID.top();
+        available_meshID.pop();
+        pmeshes[id] = pmr;
+    }
 
     return id;
 }
 
-void glWindow::render(){
+void glWindow::remove_pmesh(int id){
+    if (id >= 0 && id < pmeshes.size() && pmeshes[id]){
+        delete pmeshes[id];
+        pmeshes[id] = NULL;
+        available_meshID.push(id);
+        // clear empty tail?
+    }
+}
+
+void glWindow::render(MeshMode mode){
     glUseProgram(renderProgram.id);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -173,24 +189,45 @@ void glWindow::render(){
     glUniform3fv(glGetUniformLocation(renderProgram.id, "lightColor"), 1, glm::value_ptr(lightColor));
 
     for (auto pmesh : pmeshes){
-        pmesh->render(renderProgram.id);
+        pmesh->render(renderProgram.id, mode);
     }
 
     glUseProgram(0);
-    
+}
+
+void glWindow::render_diff(unsigned char* buf1, unsigned char* buf2){
+    vector<GLfloat> pixelColors(2 * width * height);
+    int count = 0;
+    for (int i = 0; i < width * height; i++){
+        memcpy(&pixelColors[count++], buf1, 3 * sizeof(unsigned char));
+        memcpy(&pixelColors[count++], buf2, 3 * sizeof(unsigned char));
+        buf1 += 3;
+        buf2 += 3;
+    }
+
+    glBindVertexArray(diffBuffer.VAO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, diffBuffer.VBO[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, 2 * width * height * sizeof(GLfloat), sizeof(GLfloat) * pixelColors.size(), pixelColors.data());
+
+    glUseProgram(diffProgram.id);
+    glDrawElements(GL_POINTS, width * height, GL_UNSIGNED_INT, NULL);
+    glUseProgram(0);
+
+    glBindVertexArray(0);
+}
+
+void glWindow::display(){
     SDL_GL_SwapWindow(window);
 }
 
-int glWindow::initOpenGL(){
-    glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
-    glClearDepth(1.0f);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+void glWindow::get_pixels(unsigned char* buf){
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buf);
+}
 
+bool glWindow::init_render_program(){
     // load 3D shader program
-    renderProgram.vertexShader = loadShaderFromFile("3DShader.vert", GL_VERTEX_SHADER);
-    renderProgram.fragmentShader = loadShaderFromFile("3DShader.frag", GL_FRAGMENT_SHADER);
+    renderProgram.vertexShader = load_shader_from_file("3DShader.vert", GL_VERTEX_SHADER);
+    renderProgram.fragmentShader = load_shader_from_file("3DShader.frag", GL_FRAGMENT_SHADER);
 
     renderProgram.id = glCreateProgram();
 
@@ -212,10 +249,14 @@ int glWindow::initOpenGL(){
     }
 
     glUniform1i(glGetUniformLocation(renderProgram.id, "Texture"), 0);
-    
+
+    return true;
+}
+
+bool glWindow::init_warp_program(){
     // load warp shader program
-    warpProgram.vertexShader = loadShaderFromFile("warpShader.vert", GL_VERTEX_SHADER);
-    warpProgram.fragmentShader = loadShaderFromFile("warpShader.frag", GL_FRAGMENT_SHADER);
+    warpProgram.vertexShader = load_shader_from_file("warpShader.vert", GL_VERTEX_SHADER);
+    warpProgram.fragmentShader = load_shader_from_file("warpShader.frag", GL_FRAGMENT_SHADER);
 
     warpProgram.id = glCreateProgram();
 
@@ -228,6 +269,7 @@ int glWindow::initOpenGL(){
 
     glLinkProgram(warpProgram.id);
 
+    GLint isLinked = GL_TRUE;
     glGetProgramiv(warpProgram.id, GL_LINK_STATUS, &isLinked);
     if (isLinked == GL_FALSE){
         cerr << "Failed to link shader program" << endl;
@@ -237,7 +279,89 @@ int glWindow::initOpenGL(){
     return true;
 }
 
-GLuint glWindow::loadShaderFromFile(string filename, GLenum shaderType){
+bool glWindow::init_diff_program(){
+    diffProgram.vertexShader = load_shader_from_file("diffShader.vert", GL_VERTEX_SHADER);
+    diffProgram.fragmentShader = load_shader_from_file("diffShader.frag", GL_FRAGMENT_SHADER);
+
+    diffProgram.id = glCreateProgram();
+
+    glAttachShader(diffProgram.id, diffProgram.vertexShader);
+    glAttachShader(diffProgram.id, diffProgram.fragmentShader);
+
+    glBindAttribLocation(diffProgram.id, 0, "in_Position");
+    glBindAttribLocation(diffProgram.id, 1, "in_Color_1");
+    glBindAttribLocation(diffProgram.id, 2, "in_Color_2");
+
+    glLinkProgram(diffProgram.id);
+
+    GLint isLinked = GL_TRUE;
+    glGetProgramiv(diffProgram.id, GL_LINK_STATUS, &isLinked);
+    if (isLinked == GL_FALSE){
+        cerr << "Failed to link shader program" << endl;
+        return false;
+    }
+
+    // initialize vbuffer
+    diffBuffer.VBO.resize(1);
+    diffBuffer.VAO.resize(1);
+    diffBuffer.IBO.resize(1);
+    glGenBuffers(2, diffBuffer.VBO.data());
+    glGenVertexArrays(1, diffBuffer.VAO.data());
+    glGenBuffers(1, diffBuffer.IBO.data());
+
+    vector<GLfloat> pixelVertices(4 * width * height);
+
+    int count = 0;
+    for (int i = 0; i < height; i++){
+        for (int j = 0; j < width; j++){
+            pixelVertices[count++] = (GLfloat)j * 2.0 / width - 1.0;
+            pixelVertices[count++] = (GLfloat)i * 2.0 / height - 1.0;
+        }
+    }
+
+    vector<GLuint> pixelIndices(width * height);
+    for (int i = 0; i < pixelIndices.size(); i++){
+        pixelIndices[i] = i;
+    }
+
+    glBindVertexArray(diffBuffer.VAO[0]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, diffBuffer.VBO[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * pixelVertices.size(), pixelVertices.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), 0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, 2 * sizeof(GLfloat), (void*)(2 * width * height * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_FALSE, 2 * sizeof(GLfloat), (void*)((2 * width * height + 1) * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, diffBuffer.IBO[0]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * pixelIndices.size(), pixelIndices.data(), GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+
+    return true;
+}
+
+bool glWindow::init_OpenGL(){
+    glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
+    glClearDepth(1.0f);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+
+    if (!init_render_program()){
+        return false;
+    }
+
+    if (!init_diff_program()){
+        return false;
+    }
+    
+    return true;
+}
+
+GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
 	GLuint shaderID = 0;
 	string content;
 	ifstream ifs(filename.c_str());
