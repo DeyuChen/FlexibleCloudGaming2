@@ -220,8 +220,12 @@ void glWindow::display(){
     SDL_GL_SwapWindow(window);
 }
 
-void glWindow::get_pixels(unsigned char* buf){
+void glWindow::read_pixels(unsigned char* buf){
     glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buf);
+}
+
+void glWindow::draw_pixels(const unsigned char* buf){
+    glDrawPixels(width, height, GL_RGB, GL_UNSIGNED_BYTE, buf);
 }
 
 bool glWindow::init_render_program(){

@@ -17,9 +17,9 @@ int main(int argc, char *argv[]){
     }
 
     glWindow window;
-    window.create_window("Client", width, height);
+    window.create_window("Server", width, height);
 
-    Decoder decoder("h264", width, height);
+    Encoder encoder("libx264", width, height, 8000000);
 
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
     unsigned char* simpPixels = new unsigned char[3 * width * height];
     unsigned char* fullPixels = new unsigned char[3 * width * height];
 
-    // TODO: connect to server
+    // TODO: listen to client connection
 
     bool quit = false;
     while(!quit){
@@ -67,16 +67,22 @@ int main(int argc, char *argv[]){
             }
         }
 
+        window.render(MeshMode::full);
+        window.read_pixels(fullPixels);
         window.render(MeshMode::simp);
         window.read_pixels(simpPixels);
-
-        // TODO: recv pkt from server
-
-        // TODO: decode pkt
-        
-        // TODO: render sum
-
+        window.render_diff(fullPixels, simpPixels);
         window.display();
+
+        // encoding
+        window.read_pixels(frame->data[0]);
+        if (encoder.encode(frame, pkt)){
+            //cout << pkt->size << endl;
+        }
+
+        // TODO: send pkt to client
+
+        av_packet_unref(pkt);
     }
 
     return 0;

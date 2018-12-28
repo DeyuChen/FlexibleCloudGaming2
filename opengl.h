@@ -1,5 +1,5 @@
-#ifndef GLHEADER_H
-#define GLHEADER_H
+#ifndef OPENGL_H
+#define OPENGL_H
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>

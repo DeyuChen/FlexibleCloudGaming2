@@ -1,9 +1,9 @@
 #ifndef GLWINDOW_H
 #define GLWINDOW_H
 
-#include "glHeader.h"
+#include "opengl.h"
 #include "PMeshRenderer.h"
-#include "common.h"
+#include "VBufferInfo.h"
 #include <string>
 #include <queue>
 
@@ -34,7 +34,8 @@ public:
     void render(MeshMode mode);
     void render_diff(unsigned char* buf1, unsigned char* buf2);
     void display();
-    void get_pixels(unsigned char* buf);
+    void read_pixels(unsigned char* buf);
+    void draw_pixels(const unsigned char* buf);
 
 private:
     bool init_render_program();

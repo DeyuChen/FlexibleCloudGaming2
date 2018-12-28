@@ -1,9 +1,9 @@
 #ifndef PMESHRENDERER_H
 #define PMESHRENDERER_H
 
-#include "glHeader.h"
+#include "opengl.h"
 #include "PMesh.h"
-#include "common.h"
+#include "VBufferInfo.h"
 #include <string>
 #include <vector>
 #include <fstream>
