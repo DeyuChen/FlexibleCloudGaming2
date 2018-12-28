@@ -22,4 +22,4 @@ $(EXECUTABLE2): $(OBJECTS2)
 	$(CC) $(CFLAGS) $(INC) $< -o $@
 
 clean:
-	rm -rf *o $(EXECUTABLE)
+	rm -rf *o $(EXECUTABLE1) $(EXECUTABLE2)
