@@ -67,7 +67,7 @@ void glWindow::mouse_motion(int x, int y){
     elevation += (RelY * 180);
 }
 
-void glWindow::key_press(Sint32 key, int x, int y){
+void glWindow::key_press(int key, int x, int y){
     switch(key){
         case SDLK_w:
             viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);

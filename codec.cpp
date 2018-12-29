@@ -63,7 +63,7 @@ Encoder::Encoder(const char *codecName, int width, int height, int bit_rate) :
     // rgb to yuv transformation
     ctxRGB2YUV = sws_getContext(width, height, AV_PIX_FMT_RGB24, width, height, YUV_FORMAT, 0, 0, 0, 0);
     if (!ctxRGB2YUV){
-        cerr << "Failed to get sws context!" << endl;;
+        cerr << "Failed to get sws context!" << endl;
         return;
     }
 }
@@ -75,7 +75,7 @@ bool Encoder::encode(AVFrame *frameRGB, AVPacket *pkt){
 
     int got_output;
     if (avcodec_encode_video2(c, pkt, frameYUV, &got_output) < 0){
-        cerr << "Error encoding frame" << endl;;
+        cerr << "Error encoding frame" << endl;
         return false;
     }
 
@@ -120,7 +120,7 @@ Decoder::Decoder(const char *codecName, int width, int height) :
     // yuv to rgb transformation
     ctxYUV2RGB = sws_getContext(width, height, YUV_FORMAT, width, height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
     if (!ctxYUV2RGB){
-        cerr << "Failed to get sws context!" << endl;;
+        cerr << "Failed to get sws context!" << endl;
         return;
     }
 }
@@ -128,7 +128,7 @@ Decoder::Decoder(const char *codecName, int width, int height) :
 bool Decoder::decode(AVFrame *frameRGB, AVPacket *pkt){
     int got_output;
     if (avcodec_decode_video2(c, frameYUV, &got_output, pkt) < 0){
-        cerr << "Error decoding frame" << endl;;
+        cerr << "Error decoding frame" << endl;
         return false;
     }
 

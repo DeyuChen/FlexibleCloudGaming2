@@ -1,6 +1,7 @@
 #include "ffmpeg.h"
 #include "PMeshRenderer.h"
 #include "glWindow.h"
+#include "communicator.h"
 #include "codec.h"
 #include <iostream>
 #include <fstream>
@@ -15,6 +16,8 @@ int main(int argc, char *argv[]){
         cout << "Not enough input arguments" << endl;
         return -1;
     }
+
+    ClientComm comm("127.0.0.1", 9999);
 
     glWindow window;
     window.create_window("Client", width, height);
@@ -49,28 +52,41 @@ int main(int argc, char *argv[]){
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     unsigned char* simpPixels = new unsigned char[3 * width * height];
-    unsigned char* fullPixels = new unsigned char[3 * width * height];
-
-    // TODO: connect to server
+    unsigned char* diffPixels = new unsigned char[3 * width * height];
 
     bool quit = false;
     while(!quit){
+        CommonProtocol message;
+
         int x = 0, y = 0;
         SDL_GetRelativeMouseState(&x, &y);
         window.mouse_motion(x, y);
+        comm.set_mouse_state(x, y);
 
         while (SDL_PollEvent(&e) != 0){
             if (e.type == SDL_QUIT){
                 quit = true;
             } else if (e.type == SDL_KEYDOWN){
                 window.key_press(e.key.keysym.sym, x, y);
+                comm.add_key_press(e.key.keysym.sym);
             }
+            // TODO: use KEYUP to avoid repeated KEYDOWN
+            /*
+            } else if (e.type == SDL_KEYDOWN && e.key.repeat == 0){
+                window.key_press(e.key.keysym.sym, x, y);
+            } else if (e.type == SDL_UP){
+                window.key_release(e.key.keysym.sym, x, y);
+            }
+            */
         }
+
+        comm.send_msg();
 
         window.render(MeshMode::simp);
         window.read_pixels(simpPixels);
 
         // TODO: recv pkt from server
+        comm.recv_msg();
 
         // TODO: decode pkt
         

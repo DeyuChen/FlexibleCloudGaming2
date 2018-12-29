@@ -26,7 +26,7 @@ public:
     void kill_window();
 
     void mouse_motion(int x, int y);
-    void key_press(Sint32 key, int x, int y);
+    void key_press(int key, int x, int y);
 
     int add_pmesh(const hh::PMesh& pm);
     void remove_pmesh(int id);

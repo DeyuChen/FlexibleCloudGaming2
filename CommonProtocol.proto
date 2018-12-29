@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message CommonProtocol {
+  int32 mouse_x = 1;
+  int32 mouse_y = 2;
+  repeated int32 key_press = 3;
+}

@@ -2,6 +2,7 @@
 #include "PMeshRenderer.h"
 #include "glWindow.h"
 #include "codec.h"
+#include "communicator.h"
 #include <iostream>
 #include <fstream>
 
@@ -15,6 +16,8 @@ int main(int argc, char *argv[]){
         cout << "Not enough input arguments" << endl;
         return -1;
     }
+
+    ServerComm comm(9999);
 
     glWindow window;
     window.create_window("Server", width, height);
@@ -46,26 +49,24 @@ int main(int argc, char *argv[]){
     int mid = window.add_pmesh(pm);
 
     SDL_Event e;
-    SDL_SetRelativeMouseMode(SDL_TRUE);
 
     unsigned char* simpPixels = new unsigned char[3 * width * height];
     unsigned char* fullPixels = new unsigned char[3 * width * height];
 
-    // TODO: listen to client connection
-
     bool quit = false;
     while(!quit){
-        int x = 0, y = 0;
-        SDL_GetRelativeMouseState(&x, &y);
+        comm.recv_msg();
+        int x, y;
+        comm.get_mouse_state(x, y);
         window.mouse_motion(x, y);
 
-        while (SDL_PollEvent(&e) != 0){
-            if (e.type == SDL_QUIT){
-                quit = true;
-            } else if (e.type == SDL_KEYDOWN){
-                window.key_press(e.key.keysym.sym, x, y);
-            }
+        for (int i = 0; i < comm.get_key_press_size(); i++){
+            window.key_press(comm.get_key_press(i), x, y);
         }
+
+        // flush all events to prevent overflow
+        SDL_PumpEvents();
+        SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
 
         window.render(MeshMode::full);
         window.read_pixels(fullPixels);
@@ -81,6 +82,7 @@ int main(int argc, char *argv[]){
         }
 
         // TODO: send pkt to client
+        comm.send_msg();
 
         av_packet_unref(pkt);
     }
