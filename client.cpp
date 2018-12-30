@@ -66,19 +66,15 @@ int main(int argc, char *argv[]){
         while (SDL_PollEvent(&e) != 0){
             if (e.type == SDL_QUIT){
                 quit = true;
-            } else if (e.type == SDL_KEYDOWN){
-                window.key_press(e.key.keysym.sym, x, y);
-                comm.add_key_press(e.key.keysym.sym);
-            }
-            // TODO: use KEYUP to avoid repeated KEYDOWN
-            /*
             } else if (e.type == SDL_KEYDOWN && e.key.repeat == 0){
-                window.key_press(e.key.keysym.sym, x, y);
-            } else if (e.type == SDL_UP){
-                window.key_release(e.key.keysym.sym, x, y);
+                window.key_event(true, e.key.keysym.sym, x, y);
+                comm.add_key_event(true, e.key.keysym.sym);
+            } else if (e.type == SDL_KEYUP){
+                window.key_event(false, e.key.keysym.sym, x, y);
+                comm.add_key_event(false, e.key.keysym.sym);
             }
-            */
         }
+        window.update_state();
 
         comm.send_msg();
 

@@ -1,8 +1,13 @@
 syntax = "proto3";
 
+message KeyEvent {
+    bool down = 1;
+    int32 key = 2;
+}
+
 message CommonProtocol {
   int32 mouse_x = 1;
   int32 mouse_y = 2;
-  repeated int32 key_press = 3;
+  repeated KeyEvent key_event = 3;
   bytes diff_frame = 4;
 }

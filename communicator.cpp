@@ -11,21 +11,22 @@ void Communicator::set_mouse_state(int x, int y){
     outMessage.set_mouse_y(y);
 }
 
-void Communicator::get_mouse_state(int &x, int &y){
-    x = inMessage.mouse_x();
-    y = inMessage.mouse_y();
+tuple<int, int> Communicator::get_mouse_state(){
+    return {inMessage.mouse_x(), inMessage.mouse_y()};
 }
 
-void Communicator::add_key_press(int key){
-    outMessage.add_key_press(key);
+void Communicator::add_key_event(bool down, int key){
+    KeyEvent *key_event = outMessage.add_key_event();
+    key_event->set_down(down);
+    key_event->set_key(key);
 }
 
-int Communicator::get_key_press_size(){
-    return inMessage.key_press_size();
+int Communicator::get_key_event_size(){
+    return inMessage.key_event_size();
 }
 
-int Communicator::get_key_press(int id){
-    return inMessage.key_press(id);
+tuple<bool, int> Communicator::get_key_event(int id){
+    return {inMessage.key_event(id).down(), inMessage.key_event(id).key()};
 }
 
 void Communicator::set_diff_frame(AVPacket *pkt){

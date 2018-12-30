@@ -6,6 +6,7 @@
 #include "VBufferInfo.h"
 #include <string>
 #include <queue>
+#include <unordered_map>
 
 struct ShaderProgram {
     GLuint id = 0;
@@ -15,9 +16,13 @@ struct ShaderProgram {
 
 class glWindow {
 public:
-    glWindow() : window(NULL), width(0), height(0),
-                      viewX(0), viewY(0), viewZ(0), moveSpeed(0.1),
-                      elevation(0), azimuth(0)
+    glWindow() :
+        window(NULL), width(0), height(0),
+        viewX(0), viewY(0), viewZ(0), moveSpeed(0.1),
+        elevation(0), azimuth(0),
+        pressedKeys({{SDLK_w, false}, {SDLK_d, false}, {SDLK_s, false},
+            {SDLK_a, false}, {SDLK_e, false}, {SDLK_q, false}, {SDLK_PAGEUP, false},
+            {SDLK_PAGEDOWN, false}, {SDLK_UP, false}, {SDLK_DOWN, false}})
     {};
 
     ~glWindow(){};
@@ -26,7 +31,8 @@ public:
     void kill_window();
 
     void mouse_motion(int x, int y);
-    void key_press(int key, int x, int y);
+    void key_event(bool down, int key, int x, int y);
+    void update_state();
 
     int add_pmesh(const hh::PMesh& pm);
     void remove_pmesh(int id);
@@ -57,6 +63,8 @@ private:
     float moveSpeed;
     float elevation;
     float azimuth;
+
+    std::unordered_map<int, bool> pressedKeys;
 
     ShaderProgram renderProgram;
     ShaderProgram warpProgram;

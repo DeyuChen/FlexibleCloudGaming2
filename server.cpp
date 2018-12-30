@@ -55,13 +55,14 @@ int main(int argc, char *argv[]){
     bool quit = false;
     while(!quit){
         comm.recv_msg();
-        int x, y;
-        comm.get_mouse_state(x, y);
+        auto [x, y] = comm.get_mouse_state();
         window.mouse_motion(x, y);
 
-        for (int i = 0; i < comm.get_key_press_size(); i++){
-            window.key_press(comm.get_key_press(i), x, y);
+        for (int i = 0; i < comm.get_key_event_size(); i++){
+            auto [down, key] = comm.get_key_event(i);
+            window.key_event(down, key, x, y);
         }
+        window.update_state();
 
         // flush all events to prevent overflow
         SDL_PumpEvents();

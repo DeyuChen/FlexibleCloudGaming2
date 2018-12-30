@@ -68,71 +68,54 @@ void glWindow::mouse_motion(int x, int y){
     elevation += (RelY * 180);
 }
 
-void glWindow::key_press(int key, int x, int y){
-    switch(key){
-        case SDLK_w:
-            viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
-            viewX -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
-            break;
+void glWindow::key_event(bool down, int key, int x, int y){
+    if (pressedKeys.count(key)){
+        pressedKeys[key] = down;
+    }
+}
 
-        case SDLK_d:
-            viewZ -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
-            viewX -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
-            break;
-
-        case SDLK_s:
-            viewZ -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
-            viewX += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
-            break;
-
-        case SDLK_a:
-            viewZ += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
-            viewX += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
-            break;
-
-        case SDLK_e:
-            viewY += moveSpeed;
-            break;
-
-        case SDLK_q:
-            viewY -= moveSpeed;
-            break;
-
-        case SDLK_PAGEUP:
-            for (auto pmesh : pmeshes){
-                pmesh->goto_vpercentage(min(100, pmesh->get_vpercentage() + 5));
-            }
-            break;
-
-        case SDLK_PAGEDOWN:
-            for (auto pmesh : pmeshes){
-                pmesh->goto_vpercentage(max(0, pmesh->get_vpercentage() - 5));
-            }
-            break;
-
-        case SDLK_UP:
-            for (auto pmesh : pmeshes){
-                pmesh->next();
-            }
-            break;
-
-        case SDLK_DOWN:
-            for (auto pmesh : pmeshes){
-                pmesh->prev();
-            }
-            break;
-
-        /*
-        case SDLK_m:
-            renderingMode = (renderingMode + 1) % 3;
-            break;
-        case SDLK_n:
-            renderingMode = (renderingMode + 2) % 3;
-            break;
-        case SDLK_t:
-            conf.texture = !conf.texture;
-            break;
-        */
+void glWindow::update_state(){
+    if (pressedKeys[SDLK_w]){
+        viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
+        viewX -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
+    }
+    if (pressedKeys[SDLK_d]){
+        viewZ -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
+        viewX -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
+    }
+    if (pressedKeys[SDLK_s]){
+        viewZ -= moveSpeed * cos(azimuth * 3.14159265 / 180.0);
+        viewX += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
+    }
+    if (pressedKeys[SDLK_a]){
+        viewZ += moveSpeed * sin(azimuth * 3.14159265 / 180.0);
+        viewX += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
+    }
+    if (pressedKeys[SDLK_e]){
+        viewY += moveSpeed;
+    }
+    if (pressedKeys[SDLK_q]){
+        viewY -= moveSpeed;
+    }
+    if (pressedKeys[SDLK_PAGEUP]){
+        for (auto pmesh : pmeshes){
+            pmesh->goto_vpercentage(min(100, pmesh->get_vpercentage() + 5));
+        }
+    }
+    if (pressedKeys[SDLK_PAGEDOWN]){
+        for (auto pmesh : pmeshes){
+            pmesh->goto_vpercentage(max(0, pmesh->get_vpercentage() - 5));
+        }
+    }
+    if (pressedKeys[SDLK_UP]){
+        for (auto pmesh : pmeshes){
+            pmesh->next();
+        }
+    }
+    if (pressedKeys[SDLK_DOWN]){
+        for (auto pmesh : pmeshes){
+            pmesh->prev();
+        }
     }
 }
 

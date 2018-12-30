@@ -1,7 +1,7 @@
 CC = g++
 LIB = -Llib
 INC = -Iinclude/libHh
-CFLAGS = -c -std=c++11
+CFLAGS = -c -std=c++17
 LDFLAGS = -lSDL2 -lglut -lGL -lGLU -lglfw -lGLEW -lavformat -lavcodec -lavutil -lswscale -lSDL2_image -lHh -lpthread `pkg-config --cflags --libs protobuf`
 SOURCES = glWindow.cpp PMeshRenderer.cpp codec.cpp communicator.cpp CommonProtocol.pb.cc
 OBJECTS1 = server.o $(SOURCES:.cpp=.o)
