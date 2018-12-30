@@ -1,3 +1,4 @@
+#include "ffmpeg.h"
 #include "communicator.h"
 #include <string.h>
 #include <iostream>
@@ -27,6 +28,17 @@ int Communicator::get_key_press(int id){
     return inMessage.key_press(id);
 }
 
+void Communicator::set_diff_frame(AVPacket *pkt){
+    string frame((char*)pkt->data, pkt->size);
+    outMessage.set_diff_frame(frame);
+}
+
+void Communicator::get_diff_frame(AVPacket *pkt){
+    string *frame = inMessage.mutable_diff_frame();
+    pkt->size = frame->size();
+    pkt->data = (uint8_t*)(frame->c_str());
+}
+
 int Communicator::send_msg(){
     string s;
     outMessage.SerializeToString(&s);
@@ -44,12 +56,11 @@ int Communicator::recv_msg(){
 
     string s(size, '\0');
     int n = 0;
-    if (size > 0){
-        n = recv(sockfd, &s[0], size, 0);
+    while (n != size){
+        n += recv(sockfd, &s[n], size - n, 0);
     }
-    inMessage.Clear();
     inMessage.ParseFromString(s);
-    return n;
+    return size;
 }
 
 ServerComm::ServerComm(unsigned short port){

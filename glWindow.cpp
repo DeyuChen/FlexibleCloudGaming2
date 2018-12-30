@@ -10,6 +10,7 @@ using namespace std;
 bool glWindow::create_window(const char* title, int _width, int _height){
     width = _width;
     height = _height;
+    nPixels = width * height;
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0){
         printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
@@ -196,21 +197,42 @@ void glWindow::render(MeshMode mode){
 }
 
 void glWindow::render_diff(unsigned char* buf1, unsigned char* buf2){
-    vector<GLfloat> pixelColors(2 * width * height);
-    int count = 0;
-    for (int i = 0; i < width * height; i++){
-        memcpy(&pixelColors[count++], buf1, 3 * sizeof(unsigned char));
-        memcpy(&pixelColors[count++], buf2, 3 * sizeof(unsigned char));
-        buf1 += 3;
-        buf2 += 3;
+    if (!diffProgram.id && !init_diff_program()){
+        return;
     }
 
-    glBindVertexArray(diffBuffer.VAO[0]);
-    glBindBuffer(GL_ARRAY_BUFFER, diffBuffer.VBO[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, 2 * width * height * sizeof(GLfloat), sizeof(GLfloat) * pixelColors.size(), pixelColors.data());
+    glBindVertexArray(pixelBuffer.VAO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, pixelBuffer.VBO[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(GLfloat), sizeof(GLfloat) * nPixels, buf1);
+    glBufferSubData(GL_ARRAY_BUFFER, 3 * nPixels * sizeof(GLfloat), sizeof(GLfloat) * nPixels, buf2);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepth(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(diffProgram.id);
-    glDrawElements(GL_POINTS, width * height, GL_UNSIGNED_INT, NULL);
+    glDrawElements(GL_POINTS, nPixels, GL_UNSIGNED_INT, NULL);
+    glUseProgram(0);
+
+    glBindVertexArray(0);
+}
+
+void glWindow::render_sum(unsigned char* buf1, unsigned char* buf2){
+    if (!sumProgram.id && !init_sum_program()){
+        return;
+    }
+
+    glBindVertexArray(pixelBuffer.VAO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, pixelBuffer.VBO[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(GLfloat), sizeof(GLfloat) * nPixels, buf1);
+    glBufferSubData(GL_ARRAY_BUFFER, 3 * nPixels * sizeof(GLfloat), sizeof(GLfloat) * nPixels, buf2);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepth(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(sumProgram.id);
+    glDrawElements(GL_POINTS, nPixels, GL_UNSIGNED_INT, NULL);
     glUseProgram(0);
 
     glBindVertexArray(0);
@@ -220,12 +242,55 @@ void glWindow::display(){
     SDL_GL_SwapWindow(window);
 }
 
-void glWindow::read_pixels(unsigned char* buf){
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buf);
+void glWindow::read_pixels(unsigned char* buf, GLenum format){
+    glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
 }
 
-void glWindow::draw_pixels(const unsigned char* buf){
-    glDrawPixels(width, height, GL_RGB, GL_UNSIGNED_BYTE, buf);
+void glWindow::draw_pixels(const unsigned char* buf, GLenum format){
+    glDrawPixels(width, height, format, GL_UNSIGNED_BYTE, buf);
+}
+
+void glWindow::init_pixel_buffer(){
+    if (pixelBuffer.VBO.size())
+        return;
+
+    pixelBuffer.VBO.resize(1);
+    pixelBuffer.VAO.resize(1);
+    pixelBuffer.IBO.resize(1);
+    glGenBuffers(2, pixelBuffer.VBO.data());
+    glGenVertexArrays(1, pixelBuffer.VAO.data());
+    glGenBuffers(1, pixelBuffer.IBO.data());
+
+    vector<GLfloat> pixelVertices(4 * nPixels);
+
+    int count = 0;
+    for (int i = 0; i < height; i++){
+        for (int j = 0; j < width; j++){
+            pixelVertices[count++] = (GLfloat)j * 2.0 / width - 1.0;
+            pixelVertices[count++] = (GLfloat)i * 2.0 / height - 1.0;
+        }
+    }
+
+    vector<GLuint> pixelIndices(nPixels);
+    for (int i = 0; i < pixelIndices.size(); i++){
+        pixelIndices[i] = i;
+    }
+
+    glBindVertexArray(pixelBuffer.VAO[0]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, pixelBuffer.VBO[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * pixelVertices.size(), pixelVertices.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), 0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GLfloat), (void*)(2 * nPixels * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GLfloat), (void*)(3 * nPixels * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pixelBuffer.IBO[0]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * pixelIndices.size(), pixelIndices.data(), GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
 }
 
 bool glWindow::init_render_program(){
@@ -305,44 +370,34 @@ bool glWindow::init_diff_program(){
         return false;
     }
 
-    // initialize vbuffer
-    diffBuffer.VBO.resize(1);
-    diffBuffer.VAO.resize(1);
-    diffBuffer.IBO.resize(1);
-    glGenBuffers(2, diffBuffer.VBO.data());
-    glGenVertexArrays(1, diffBuffer.VAO.data());
-    glGenBuffers(1, diffBuffer.IBO.data());
+    init_pixel_buffer();
 
-    vector<GLfloat> pixelVertices(4 * width * height);
+    return true;
+}
 
-    int count = 0;
-    for (int i = 0; i < height; i++){
-        for (int j = 0; j < width; j++){
-            pixelVertices[count++] = (GLfloat)j * 2.0 / width - 1.0;
-            pixelVertices[count++] = (GLfloat)i * 2.0 / height - 1.0;
-        }
+bool glWindow::init_sum_program(){
+    sumProgram.vertexShader = load_shader_from_file("sumShader.vert", GL_VERTEX_SHADER);
+    sumProgram.fragmentShader = load_shader_from_file("sumShader.frag", GL_FRAGMENT_SHADER);
+
+    sumProgram.id = glCreateProgram();
+
+    glAttachShader(sumProgram.id, sumProgram.vertexShader);
+    glAttachShader(sumProgram.id, sumProgram.fragmentShader);
+
+    glBindAttribLocation(sumProgram.id, 0, "in_Position");
+    glBindAttribLocation(sumProgram.id, 1, "in_Color_1");
+    glBindAttribLocation(sumProgram.id, 2, "in_Color_2");
+
+    glLinkProgram(sumProgram.id);
+
+    GLint isLinked = GL_TRUE;
+    glGetProgramiv(sumProgram.id, GL_LINK_STATUS, &isLinked);
+    if (isLinked == GL_FALSE){
+        cerr << "Failed to link shader program" << endl;
+        return false;
     }
 
-    vector<GLuint> pixelIndices(width * height);
-    for (int i = 0; i < pixelIndices.size(); i++){
-        pixelIndices[i] = i;
-    }
-
-    glBindVertexArray(diffBuffer.VAO[0]);
-
-    glBindBuffer(GL_ARRAY_BUFFER, diffBuffer.VBO[0]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * pixelVertices.size(), pixelVertices.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), 0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, 2 * sizeof(GLfloat), (void*)(2 * width * height * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_FALSE, 2 * sizeof(GLfloat), (void*)((2 * width * height + 1) * sizeof(float)));
-    glEnableVertexAttribArray(2);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, diffBuffer.IBO[0]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * pixelIndices.size(), pixelIndices.data(), GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
+    init_pixel_buffer();
 
     return true;
 }
@@ -355,10 +410,6 @@ bool glWindow::init_OpenGL(){
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
     if (!init_render_program()){
-        return false;
-    }
-
-    if (!init_diff_program()){
         return false;
     }
     

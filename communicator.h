@@ -12,9 +12,13 @@ public:
     void add_key_press(int key);
     int get_key_press_size();
     int get_key_press(int id);
+    void set_diff_frame(AVPacket *pkt);
+    void get_diff_frame(AVPacket *pkt);
 
     int send_msg();
     int recv_msg();
+
+    int get_sockfd(){ return sockfd; }
 
 protected:
     int sockfd;

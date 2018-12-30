@@ -8,8 +8,8 @@
 
 using namespace std;
 
-const int width = 1080;
-const int height = 720;
+const int width = 1280;
+const int height = 960;
 
 int main(int argc, char *argv[]){
     if (argc < 2){
@@ -24,6 +24,18 @@ int main(int argc, char *argv[]){
 
     Decoder decoder("h264", width, height);
 
+    ifstream ifs(argv[1], ifstream::in);
+
+    // TODO: get progressive meshes from the server
+    hh::PMesh pm;
+    pm.read(ifs);
+    int mid = window.add_pmesh(pm);
+
+    SDL_Event e;
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
+    unsigned char* simpPixels = new unsigned char[4 * width * height];
+
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
         return 1;
@@ -34,25 +46,13 @@ int main(int argc, char *argv[]){
         cerr << "Could not allocate video frame" << endl;
         return 1;
     }
-    frame->format = AV_PIX_FMT_RGB24;
+    frame->format = AV_PIX_FMT_RGBA;
     frame->width  = width;
     frame->height = height;
     if (av_frame_get_buffer(frame, 32) < 0){
         cerr << "Could not allocate the video frame data" << endl;
         return 1;
     }
-
-    ifstream ifs(argv[1], ifstream::in);
-
-    hh::PMesh pm;
-    pm.read(ifs);
-    int mid = window.add_pmesh(pm);
-
-    SDL_Event e;
-    SDL_SetRelativeMouseMode(SDL_TRUE);
-
-    unsigned char* simpPixels = new unsigned char[3 * width * height];
-    unsigned char* diffPixels = new unsigned char[3 * width * height];
 
     bool quit = false;
     while(!quit){
@@ -85,12 +85,13 @@ int main(int argc, char *argv[]){
         window.render(MeshMode::simp);
         window.read_pixels(simpPixels);
 
-        // TODO: recv pkt from server
         comm.recv_msg();
+        comm.get_diff_frame(pkt);
 
-        // TODO: decode pkt
-        
-        // TODO: render sum
+        decoder.decode(frame, pkt);
+        av_packet_unref(pkt);
+
+        window.render_sum(simpPixels, frame->data[0]);
 
         window.display();
     }

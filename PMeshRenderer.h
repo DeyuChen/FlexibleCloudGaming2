@@ -34,7 +34,6 @@ private:
     void update_buffer_strip(MeshMode mode);
 
     int numTex;
-    int numVertices;
     int vertexDataSize;
     hh::Array<hh::A3dColor> defaultColors;
 

@@ -7,8 +7,7 @@ using namespace std;
 PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
     numTex = pmi._materials.num();
 
-    while (pmi.next()){}
-    numVertices = pmi._vertices.num();
+    pmi.goto_nvertices(pmrs._info._full_nvertices);
 
     // number of floats per vertex
     // minimum point * 3 + normal * 3
@@ -38,13 +37,13 @@ bool PMeshRenderer::prev(){
 }
 
 bool PMeshRenderer::goto_vpercentage(int percentage){
-    int nv = numVertices * percentage / 100;
+    int nv = pmrs._info._full_nvertices * percentage / 100;
     simpBuffer.dirty = pmi.goto_nvertices(nv);
     return simpBuffer.dirty;
 }
 
 int PMeshRenderer::get_vpercentage(){
-    return pmi._vertices.num() * 100 / numVertices;
+    return pmi._vertices.num() * 100 / pmrs._info._full_nvertices;
 }
 
 int PMeshRenderer::nfaces(){
@@ -148,7 +147,7 @@ void PMeshRenderer::update_buffer_triangle(MeshMode mode){
     } else if (mode == full){
         vBuffer = &fullBuffer;
         nv = pmi._vertices.num();
-        pmi.goto_nvertices(numVertices);
+        pmi.goto_nvertices(pmrs._info._full_nvertices);
     }
 
     vector<GLfloat> wedges(vertexDataSize * pmi._wedges.num());
