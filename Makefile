@@ -3,7 +3,8 @@ LIB = -Llib
 INC = -Iinclude/libHh
 CFLAGS = -c -std=c++17
 LDFLAGS = -lSDL2 -lglut -lGL -lGLU -lglfw -lGLEW -lavformat -lavcodec -lavutil -lswscale -lSDL2_image -lHh -lpthread `pkg-config --cflags --libs protobuf`
-SOURCES = glWindow.cpp PMeshRenderer.cpp codec.cpp communicator.cpp CommonProtocol.pb.cc
+PROTOS = CommProto.proto PMeshInfo.proto
+SOURCES = glWindow.cpp PMeshController.cpp PMeshRenderer.cpp codec.cpp communicator.cpp $(PROTOS:.proto=.pb.cc)
 OBJECTS1 = server.o $(SOURCES:.cpp=.o)
 OBJECTS2 = client.o $(SOURCES:.cpp=.o)
 
@@ -18,8 +19,8 @@ $(EXECUTABLE1): $(OBJECTS1)
 $(EXECUTABLE2): $(OBJECTS2)
 	$(CC) $(LIB) $(OBJECTS2) -o $@ $(LDFLAGS)
 
-CommonProtocol.pb.cc: CommonProtocol.proto
-	protoc --cpp_out=./ ./CommonProtocol.proto
+%.pb.cc : %.proto
+	protoc --cpp_out=./ $<
 
 .cpp.o:
 	$(CC) $(CFLAGS) $(INC) $< -o $@

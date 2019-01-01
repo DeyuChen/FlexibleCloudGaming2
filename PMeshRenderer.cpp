@@ -7,8 +7,6 @@ using namespace std;
 PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
     numTex = pmi._materials.num();
 
-    pmi.goto_nvertices(pmrs._info._full_nvertices);
-
     // number of floats per vertex
     // minimum point * 3 + normal * 3
     vertexDataSize = 6;
@@ -44,10 +42,6 @@ bool PMeshRenderer::goto_vpercentage(int percentage){
 
 int PMeshRenderer::get_vpercentage(){
     return pmi._vertices.num() * 100 / pmrs._info._full_nvertices;
-}
-
-int PMeshRenderer::nfaces(){
-    return pmi._faces.num();
 }
 
 void PMeshRenderer::render(GLuint pid, MeshMode mode){

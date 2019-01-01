@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package proto;
+
+message PMeshInfo {
+    int32 read_version = 1;
+    bool has_rgb = 2;
+    bool has_uv = 3;
+    bool has_resid = 4;
+    bool has_wad2 = 5;
+    int32 tot_nvsplits = 6;
+    int32 full_nvertices = 7;
+    int32 full_nwedges = 8;
+    int32 full_nfaces = 9;
+    float full_bbox00 = 10;
+    float full_bbox01 = 11;
+    float full_bbox02 = 12;
+    float full_bbox10 = 13;
+    float full_bbox11 = 14;
+    float full_bbox12 = 15;
+}

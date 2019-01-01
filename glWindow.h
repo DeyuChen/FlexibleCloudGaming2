@@ -36,6 +36,8 @@ public:
 
     int add_pmesh(const hh::PMesh& pm);
     void remove_pmesh(int id);
+    int get_nvertices(int id){ return pmeshes[id]->get_nvertices(); }
+    bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
     void render(MeshMode mode);
     void render_diff(unsigned char* buf1, unsigned char* buf2);

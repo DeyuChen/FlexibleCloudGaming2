@@ -16,7 +16,7 @@ tuple<int, int> Communicator::get_mouse_state(){
 }
 
 void Communicator::add_key_event(bool down, int key){
-    KeyEvent *key_event = outMessage.add_key_event();
+    proto::KeyEvent *key_event = outMessage.add_key_event();
     key_event->set_down(down);
     key_event->set_key(key);
 }

@@ -1,10 +1,12 @@
 #include "ffmpeg.h"
+#include "PMeshController.h"
 #include "PMeshRenderer.h"
 #include "glWindow.h"
 #include "codec.h"
 #include "communicator.h"
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <chrono>
 
 using namespace std;
@@ -19,17 +21,27 @@ int main(int argc, char *argv[]){
     }
 
     ServerComm comm(9999);
+    proto::PMeshProto *pmesh_proto;
 
     glWindow window;
     window.create_window("Server", width, height);
 
     Encoder encoder("libx264", width, height, 8000000);
 
-    ifstream ifs(argv[1], ifstream::in);
+    vector<int> pmIDs;
+    vector<int> pmrIDs;
 
-    hh::PMesh pm;
-    pm.read(ifs);
-    int mid = window.add_pmesh(pm);
+    PMeshController pmController;
+    ifstream ifs(argv[1], ifstream::in);
+    pmIDs.push_back(pmController.create_pmesh(ifs));
+    pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
+
+    // send base mesh to the client
+    pmesh_proto = comm.add_pmesh_proto();
+    pmesh_proto->set_id(pmIDs[0]);
+    pmesh_proto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));
+    pmesh_proto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
+    comm.send_msg();
 
     unsigned char* simpPixels = new unsigned char[4 * width * height];
     unsigned char* fullPixels = new unsigned char[4 * width * height];
@@ -63,6 +75,9 @@ int main(int argc, char *argv[]){
             window.key_event(down, key, x, y);
         }
         window.update_state();
+
+        pmesh_proto = comm.get_pmesh_proto();
+        window.set_nvertices(pmesh_proto->id(), pmesh_proto->nvertices());
 
         // flush all events to prevent overflow
         SDL_PumpEvents();
