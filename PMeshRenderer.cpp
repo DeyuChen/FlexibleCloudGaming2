@@ -25,13 +25,11 @@ PMeshRenderer::~PMeshRenderer(){
 }
 
 bool PMeshRenderer::next(){
-    simpBuffer.dirty = pmi.next();
-    return simpBuffer.dirty;
+    return set_nvertices(pmi._vertices.num() + 1);
 }
 
 bool PMeshRenderer::prev(){
-    simpBuffer.dirty = pmi.prev();
-    return simpBuffer.dirty;
+    return set_nvertices(pmi._vertices.num() - 1);
 }
 
 bool PMeshRenderer::goto_vpercentage(int percentage){
