@@ -36,12 +36,18 @@ bool PMeshRenderer::prev(){
 
 bool PMeshRenderer::goto_vpercentage(int percentage){
     int nv = pmrs._info._full_nvertices * percentage / 100;
-    simpBuffer.dirty = pmi.goto_nvertices(nv);
-    return simpBuffer.dirty;
+    return set_nvertices(nv);
 }
 
 int PMeshRenderer::get_vpercentage(){
     return pmi._vertices.num() * 100 / pmrs._info._full_nvertices;
+}
+
+bool PMeshRenderer::set_nvertices(int nv){
+    int old_nv = pmi._vertices.num();
+    pmi.goto_nvertices(nv);
+    simpBuffer.dirty |= (old_nv != pmi._vertices.num());
+    return (nv == pmi._vertices.num());
 }
 
 void PMeshRenderer::render(GLuint pid, MeshMode mode){
@@ -143,6 +149,12 @@ void PMeshRenderer::update_buffer_triangle(MeshMode mode){
         nv = pmi._vertices.num();
         pmi.goto_nvertices(pmrs._info._full_nvertices);
     }
+
+    /*
+    if (vBuffer->VBO.empty()){
+        init_buffer(mode);
+    }
+    */
 
     vector<GLfloat> wedges(vertexDataSize * pmi._wedges.num());
 

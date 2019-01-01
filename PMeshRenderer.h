@@ -22,7 +22,7 @@ public:
     bool goto_vpercentage(int percentage);
     int get_vpercentage();
     int get_nvertices(){ return pmi._vertices.num(); }
-    int set_nvertices(int nv){return pmi.goto_nvertices(nv); }
+    bool set_nvertices(int nv);
     int get_nfaces(){ return pmi._faces.num(); }
     void render(GLuint pid, MeshMode mode);
 

@@ -124,6 +124,12 @@ int main(int argc, char *argv[]){
 
         if (get_present_mode() == patched)
             window.display();
+
+        // read piggybacked vsplits
+        pmesh_proto = comm.get_pmesh_proto();
+        for (int i = 0; i < pmesh_proto->vsplit_size(); i++){
+            pmController.add_vsplit(pmesh_proto->id(), pmesh_proto->vsplit(i).id(), pmesh_proto->vsplit(i).vsplit());
+        }
     }
 
     return 0;

@@ -7,12 +7,17 @@ message KeyEvent {
     int32 key = 2;
 }
 
+message VsplitProto {
+    int32 id = 1;
+    bytes vsplit = 2;
+}
+
 message PMeshProto {
     int32 id = 1;
     int32 nvertices = 2;
     bytes pmesh_info = 3;
     bytes base_mesh = 4;
-    repeated bytes vsplits = 5;
+    repeated VsplitProto vsplit = 5;
 }
 
 message CommProto {

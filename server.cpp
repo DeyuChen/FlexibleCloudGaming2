@@ -22,6 +22,7 @@ int main(int argc, char *argv[]){
 
     ServerComm comm(9999);
     proto::PMeshProto *pmesh_proto;
+    proto::VsplitProto *vsp;
 
     glWindow window;
     window.create_window("Server", width, height);
@@ -108,6 +109,20 @@ int main(int argc, char *argv[]){
         }
 
         comm.set_diff_frame(pkt);
+
+        // piggyback some vsplits
+        // TODO: dynamically determine how many vsplits to send
+        // TODO: consider unreliable send; should have a vsplit request mechanism
+        pmesh_proto = comm.add_pmesh_proto();
+        pmesh_proto->set_id(pmIDs[0]);
+        for (int i = 0; i < 50; i++){
+            auto [n, vsplit] = pmController.get_next_vsplit(pmIDs[0]);
+            if (n == -1)
+                break;
+            vsp = pmesh_proto->add_vsplit();
+            vsp->set_id(n);
+            vsp->set_vsplit(vsplit);
+        }
         comm.send_msg();
 
         av_packet_unref(pkt);
