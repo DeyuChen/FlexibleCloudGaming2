@@ -1,5 +1,6 @@
 #version 300 es
 precision highp float;
+
 uniform sampler2D Texture;
 
 uniform vec3 viewPos;
@@ -14,7 +15,7 @@ in vec3 ex_Normal;
 in vec3 ex_Color;
 in vec2 ex_TexCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 renderedTexture;
 
 void main(void){
     float ambientStrength = 0.1;
@@ -32,10 +33,10 @@ void main(void){
     vec3 specular = specularStrength * spec * lightColor;  
 
     if (hasTex){
-        fragColor = vec4((ambient + diffuse + specular) * texture(Texture, ex_TexCoord).rgb, 1.0);
+        renderedTexture = vec4((ambient + diffuse + specular) * texture(Texture, ex_TexCoord).rgb, 1.0);
     } else if (hasColor){
-        fragColor = vec4((ambient + diffuse + specular) * ex_Color, 1.0);
+        renderedTexture = vec4((ambient + diffuse + specular) * ex_Color, 1.0);
     } else {
-        fragColor = vec4((ambient + diffuse + specular) * defaultColor, 1.0);
+        renderedTexture = vec4((ambient + diffuse + specular) * defaultColor, 1.0);
     }
 }

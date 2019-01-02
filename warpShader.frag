@@ -1,4 +1,4 @@
-#version 300 es
+#version 130
 precision highp float;
 
 in vec3 ex_Color;

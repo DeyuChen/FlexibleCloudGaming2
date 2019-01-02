@@ -1,9 +1,14 @@
 #version 300 es
 precision highp float;
 
-in vec3 ex_Color;
+uniform sampler2D Texture0;
+uniform sampler2D Texture1;
+
+in vec2 ex_TexCoord;
 out vec4 fragColor;
 
 void main(void){
-    fragColor = vec4(ex_Color, 1.0);
+    vec4 Color_1 = texture(Texture0, ex_TexCoord);
+    vec4 Color_2 = texture(Texture1, ex_TexCoord);
+    fragColor = max(min((Color_2 - Color_1) / 2.0 + 0.5, 1.0), 0.0);
 }

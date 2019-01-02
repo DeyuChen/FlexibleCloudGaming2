@@ -40,14 +40,15 @@ public:
     bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
     void render(MeshMode mode);
-    void render_diff(unsigned char* buf1, unsigned char* buf2);
-    void render_sum(unsigned char* buf1, unsigned char* buf2);
+    void render_diff();
+    void render_sum(unsigned char* diff);
     void display();
     void read_pixels(unsigned char* buf, GLenum format = GL_RGBA);
     void draw_pixels(const unsigned char* buf, GLenum format = GL_RGBA);
 
 private:
     void init_pixel_buffer();
+    bool init_frame_buffer();
     bool init_render_program();
     bool init_warp_program();
     bool init_diff_program();
@@ -56,7 +57,7 @@ private:
 
     GLuint load_shader_from_file(std::string filename, GLenum shaderType);
 
-    SDL_Window* window;
+    SDL_Window *window;
     SDL_GLContext context;
 
     int width, height;
@@ -73,7 +74,18 @@ private:
     ShaderProgram diffProgram;
     ShaderProgram sumProgram;
 
+    GLint uLocView;
+    GLint uLocProjection;
+    GLint uLocViewPos;
+    GLint uLocLightPos;
+    GLint uLocLightColor;
+
     VBufferInfo pixelBuffer;
+
+    GLuint frameBuffer;
+    GLuint depthBuffer;
+    std::vector<GLuint> renderedTextures;   // one for simplify, one for full
+    std::vector<GLenum> drawBuffers;
 
     std::vector<PMeshRenderer*> pmeshes;
 

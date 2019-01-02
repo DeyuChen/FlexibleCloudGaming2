@@ -44,9 +44,6 @@ int main(int argc, char *argv[]){
     pmesh_proto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
     comm.send_msg();
 
-    unsigned char* simpPixels = new unsigned char[4 * width * height];
-    unsigned char* fullPixels = new unsigned char[4 * width * height];
-
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
         return 1;
@@ -88,11 +85,9 @@ int main(int argc, char *argv[]){
         auto begin = chrono::high_resolution_clock::now();
 #endif
 
-        window.render(MeshMode::full);
-        window.read_pixels(fullPixels);
         window.render(MeshMode::simp);
-        window.read_pixels(simpPixels);
-        window.render_diff(fullPixels, simpPixels);
+        window.render(MeshMode::full);
+        window.render_diff();
         //window.display();
 
 #ifdef SHOW_RENDERING_TIME

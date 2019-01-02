@@ -57,8 +57,6 @@ int main(int argc, char *argv[]){
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    unsigned char* simpPixels = new unsigned char[4 * width * height];
-
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
         return 1;
@@ -110,9 +108,6 @@ int main(int argc, char *argv[]){
         comm.send_msg();
 
         window.render(MeshMode::simp);
-        if (get_present_mode() == simplified)
-            window.display();
-        window.read_pixels(simpPixels);
 
         comm.recv_msg();
         comm.get_diff_frame(pkt);
@@ -120,10 +115,11 @@ int main(int argc, char *argv[]){
         decoder.decode(frame, pkt);
         av_packet_unref(pkt);
 
-        window.render_sum(simpPixels, frame->data[0]);
+        if (get_present_mode() == simplified)
+            memset(frame->data[0], 127, 4 * width * height);
+        window.render_sum(frame->data[0]);
 
-        if (get_present_mode() == patched)
-            window.display();
+        window.display();
 
         // read piggybacked vsplits
         pmesh_proto = comm.get_pmesh_proto();

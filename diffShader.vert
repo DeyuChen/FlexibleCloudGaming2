@@ -1,11 +1,10 @@
 #version 300 es
-in vec2 in_Position;
-in lowp vec3 in_Color_1;
-in lowp vec3 in_Color_2;
+layout(location = 0) in vec2 in_Position;
+layout(location = 1) in vec2 in_TexCoord;
 
-out vec3 ex_Color;
+out vec2 ex_TexCoord;
 
 void main(void){
     gl_Position = vec4(in_Position.x, in_Position.y, 0.0, 1.0);
-    ex_Color = max(min((in_Color_1 - in_Color_2) / 510.0 + 0.5, 1.0), 0.0);
+    ex_TexCoord = in_TexCoord;
 }
