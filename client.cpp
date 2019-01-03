@@ -4,8 +4,10 @@
 #include "glWindow.h"
 #include "communicator.h"
 #include "codec.h"
+#include "CommProto.pb.h"
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <set>
 #include <chrono>
 
@@ -31,7 +33,9 @@ PresentMode get_present_mode(){
 
 int main(int argc, char *argv[]){
     ClientComm comm("127.0.0.1", 9999);
-    proto::PMeshProto *pmesh_proto;
+    proto::CommProto message;
+    proto::KeyEvent *keyEvent;
+    proto::PMeshProto *pmeshProto;
 
     set<int> keyToSend = {SDLK_w, SDLK_d, SDLK_s, SDLK_a, SDLK_e, SDLK_q};
 
@@ -46,13 +50,12 @@ int main(int argc, char *argv[]){
     // receive base mesh from the server
     // TODO: currently assume there will be only one mesh
     // TODO: it might be more efficient to handle the whole communication protocol in main
-    comm.recv_msg();
-    pmesh_proto = comm.get_pmesh_proto();
+    comm.recv_msg(message);
 
     PMeshController pmController;
     pmIDs.push_back(pmController.create_pmesh());
-    pmController.set_pmesh_info(pmIDs[0], pmesh_proto->pmesh_info());
-    pmController.set_base_mesh(pmIDs[0], pmesh_proto->base_mesh());
+    pmController.set_pmesh_info(pmIDs[0], message.pmesh(0).pmesh_info());
+    pmController.set_base_mesh(pmIDs[0], message.pmesh(0).base_mesh());
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
 
     SDL_Event e;
@@ -82,10 +85,13 @@ int main(int argc, char *argv[]){
 
     bool quit = false;
     while(!quit){
+        message.Clear();
+
         int x = 0, y = 0;
         SDL_GetRelativeMouseState(&x, &y);
         window.mouse_motion(x, y);
-        comm.set_mouse_state(x, y);
+        message.set_mouse_x(x);
+        message.set_mouse_y(y);
 
         while (SDL_PollEvent(&e) != 0){
             if (e.type == SDL_QUIT){
@@ -96,27 +102,36 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     window.key_event(true, e.key.keysym.sym, x, y);
-                    if (keyToSend.count(e.key.keysym.sym))
-                        comm.add_key_event(true, e.key.keysym.sym);
+                    if (keyToSend.count(e.key.keysym.sym)){
+                        keyEvent = message.add_key_event();
+                        keyEvent->set_down(true);
+                        keyEvent->set_key(e.key.keysym.sym);
+                    }
                 }
             } else if (e.type == SDL_KEYUP){
                 window.key_event(false, e.key.keysym.sym, x, y);
-                if (keyToSend.count(e.key.keysym.sym))
-                    comm.add_key_event(false, e.key.keysym.sym);
+                if (keyToSend.count(e.key.keysym.sym)){
+                    keyEvent = message.add_key_event();
+                    keyEvent->set_down(false);
+                    keyEvent->set_key(e.key.keysym.sym);
+                }
             }
         }
         window.update_state();
 
-        pmesh_proto = comm.add_pmesh_proto();
-        pmesh_proto->set_id(pmrIDs[0]);
-        pmesh_proto->set_nvertices(window.get_nvertices(pmrIDs[0]));
-        comm.send_msg();
+        pmeshProto = message.add_pmesh();
+        pmeshProto->set_id(pmrIDs[0]);
+        pmeshProto->set_nvertices(window.get_nvertices(pmrIDs[0]));
+
+        comm.send_msg(message);
 
         window.render_simp_to_texture0();
 
-        comm.recv_msg();
-        comm.get_diff_frame(pkt);
+        message.Clear();
+        comm.recv_msg(message);
 
+        pkt->size = message.diff_frame().size();
+        pkt->data = (uint8_t*)message.diff_frame().c_str();
         decoder.decode(frame, pkt);
         av_packet_unref(pkt);
 
@@ -135,9 +150,9 @@ int main(int argc, char *argv[]){
 #endif
 
         // read piggybacked vsplits
-        pmesh_proto = comm.get_pmesh_proto();
-        for (int i = 0; i < pmesh_proto->vsplit_size(); i++){
-            pmController.add_vsplit(pmesh_proto->id(), pmesh_proto->vsplit(i).id(), pmesh_proto->vsplit(i).vsplit());
+        pmeshProto = message.mutable_pmesh(0);
+        for (int i = 0; i < pmeshProto->vsplit_size(); i++){
+            pmController.add_vsplit(pmeshProto->id(), pmeshProto->vsplit(i).id(), pmeshProto->vsplit(i).vsplit());
         }
     }
 

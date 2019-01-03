@@ -49,7 +49,6 @@ public:
 private:
     void render_mesh(MeshMode mode);
     void render_mesh(MeshMode mode, int texid);
-
     void render_textures(int programid, int texid_1, int texid_2, int texid_out);
 
     void init_pixel_buffer();

@@ -2,8 +2,9 @@
 #include "PMeshController.h"
 #include "PMeshRenderer.h"
 #include "glWindow.h"
-#include "codec.h"
 #include "communicator.h"
+#include "codec.h"
+#include "CommProto.pb.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -21,7 +22,8 @@ int main(int argc, char *argv[]){
     }
 
     ServerComm comm(9999);
-    proto::PMeshProto *pmesh_proto;
+    proto::CommProto message;
+    proto::PMeshProto *pmeshProto;
     proto::VsplitProto *vsp;
 
     glWindow window;
@@ -38,11 +40,11 @@ int main(int argc, char *argv[]){
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
 
     // send base mesh to the client
-    pmesh_proto = comm.add_pmesh_proto();
-    pmesh_proto->set_id(pmIDs[0]);
-    pmesh_proto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));
-    pmesh_proto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
-    comm.send_msg();
+    pmeshProto = message.add_pmesh();
+    pmeshProto->set_id(pmIDs[0]);
+    pmeshProto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));
+    pmeshProto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
+    comm.send_msg(message);
 
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
@@ -64,18 +66,20 @@ int main(int argc, char *argv[]){
 
     bool quit = false;
     while(!quit){
-        comm.recv_msg();
-        auto [x, y] = comm.get_mouse_state();
+        message.Clear();
+        comm.recv_msg(message);
+        int x = message.mouse_x();
+        int y = message.mouse_y();
         window.mouse_motion(x, y);
 
-        for (int i = 0; i < comm.get_key_event_size(); i++){
-            auto [down, key] = comm.get_key_event(i);
+        for (int i = 0; i < message.key_event_size(); i++){
+            bool down = message.key_event(i).down();
+            int key = message.key_event(i).key();
             window.key_event(down, key, x, y);
         }
         window.update_state();
 
-        pmesh_proto = comm.get_pmesh_proto();
-        window.set_nvertices(pmesh_proto->id(), pmesh_proto->nvertices());
+        window.set_nvertices(message.pmesh(0).id(), message.pmesh(0).nvertices());
 
         // flush all events to prevent overflow
         SDL_PumpEvents();
@@ -101,22 +105,24 @@ int main(int argc, char *argv[]){
             //cout << pkt->size << endl;
         }
 
-        comm.set_diff_frame(pkt);
+        message.Clear();
+        string frameStr((char*)pkt->data, pkt->size);
+        message.set_diff_frame(frameStr);
 
         // piggyback some vsplits
         // TODO: dynamically determine how many vsplits to send
         // TODO: consider unreliable send; should have a vsplit request mechanism
-        pmesh_proto = comm.add_pmesh_proto();
-        pmesh_proto->set_id(pmIDs[0]);
+        pmeshProto = message.add_pmesh();
+        pmeshProto->set_id(pmIDs[0]);
         for (int i = 0; i < 50; i++){
             auto [n, vsplit] = pmController.get_next_vsplit(pmIDs[0]);
             if (n == -1)
                 break;
-            vsp = pmesh_proto->add_vsplit();
+            vsp = pmeshProto->add_vsplit();
             vsp->set_id(n);
             vsp->set_vsplit(vsplit);
         }
-        comm.send_msg();
+        comm.send_msg(message);
 
         av_packet_unref(pkt);
     }

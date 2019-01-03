@@ -6,44 +6,9 @@
 
 using namespace std;
 
-void Communicator::set_mouse_state(int x, int y){
-    outMessage.set_mouse_x(x);
-    outMessage.set_mouse_y(y);
-}
-
-tuple<int, int> Communicator::get_mouse_state(){
-    return {inMessage.mouse_x(), inMessage.mouse_y()};
-}
-
-void Communicator::add_key_event(bool down, int key){
-    proto::KeyEvent *key_event = outMessage.add_key_event();
-    key_event->set_down(down);
-    key_event->set_key(key);
-}
-
-int Communicator::get_key_event_size(){
-    return inMessage.key_event_size();
-}
-
-tuple<bool, int> Communicator::get_key_event(int id){
-    return {inMessage.key_event(id).down(), inMessage.key_event(id).key()};
-}
-
-void Communicator::set_diff_frame(AVPacket *pkt){
-    string frame((char*)pkt->data, pkt->size);
-    outMessage.set_diff_frame(frame);
-}
-
-void Communicator::get_diff_frame(AVPacket *pkt){
-    string *frame = inMessage.mutable_diff_frame();
-    pkt->size = frame->size();
-    pkt->data = (uint8_t*)(frame->c_str());
-}
-
-int Communicator::send_msg(){
+int Communicator::send_msg(const proto::CommProto &message){
     string s;
-    outMessage.SerializeToString(&s);
-    outMessage.Clear();
+    message.SerializeToString(&s);
     size_t size = s.size();
     string ss((char*)&size, sizeof(size));
     ss += s;
@@ -51,7 +16,7 @@ int Communicator::send_msg(){
     return send(sockfd, ss.c_str(), ss.size(), 0);
 }
 
-int Communicator::recv_msg(){
+int Communicator::recv_msg(proto::CommProto &message){
     size_t size;
     recv(sockfd, &size, sizeof(size), 0);
 
@@ -60,7 +25,8 @@ int Communicator::recv_msg(){
     while (n != size){
         n += recv(sockfd, &s[n], size - n, 0);
     }
-    inMessage.ParseFromString(s);
+    message.ParseFromString(s);
+
     return size;
 }
 
