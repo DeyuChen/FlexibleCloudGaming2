@@ -11,6 +11,8 @@
 #include <set>
 #include <chrono>
 
+#define SHOW_FRAME_DELAY
+
 using namespace std;
 
 const int width = 1280;
@@ -79,6 +81,8 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+    unsigned char *textureBuffer = new unsigned char[4 * width * height];
+
 #ifdef SHOW_FRAME_DELAY
     auto begin = chrono::high_resolution_clock::now();
 #endif
@@ -125,20 +129,9 @@ int main(int argc, char *argv[]){
 
         comm.send_msg(message);
 
-        window.render_simp_to_texture0();
-
-        message.Clear();
-        comm.recv_msg(message);
-
-        pkt->size = message.diff_frame().size();
-        pkt->data = (uint8_t*)message.diff_frame().c_str();
-        decoder.decode(frame, pkt);
-        av_packet_unref(pkt);
-
         if (get_present_mode() == simplified)
             memset(frame->data[0], 127, 4 * width * height);
-        window.render_sum_to_screen(frame->data[0]);
-
+        window.render_sum_to_screen(textureBuffer, frame->data[0]);
         window.display();
 
 #ifdef SHOW_FRAME_DELAY
@@ -148,6 +141,16 @@ int main(int argc, char *argv[]){
         cout << "frame delay: " << ms << "ms" << endl;
         begin = chrono::high_resolution_clock::now();;
 #endif
+
+        window.render_simp_to_texture0(textureBuffer);
+
+        message.Clear();
+        comm.recv_msg(message);
+
+        pkt->size = message.diff_frame().size();
+        pkt->data = (uint8_t*)message.diff_frame().c_str();
+        decoder.decode(frame, pkt);
+        av_packet_unref(pkt);
 
         // read piggybacked vsplits
         if (message.pmesh_size()){

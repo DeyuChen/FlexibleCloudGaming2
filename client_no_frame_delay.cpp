@@ -11,6 +11,8 @@
 #include <set>
 #include <chrono>
 
+#define SHOW_FRAME_DELAY
+
 using namespace std;
 
 const int width = 1280;

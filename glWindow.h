@@ -40,15 +40,16 @@ public:
     bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
     void render_diff_to_screen();
-    void render_simp_to_texture0();
+    void render_simp_to_texture0(unsigned char* buf = nullptr);
     void render_sum_to_screen(unsigned char* diff);
+    void render_sum_to_screen(unsigned char* buf, unsigned char* diff);
     void display();
     void read_pixels(unsigned char* buf, GLenum format = GL_RGBA);
     void draw_pixels(const unsigned char* buf, GLenum format = GL_RGBA);
 
 private:
     void render_mesh(MeshMode mode);
-    void render_mesh(MeshMode mode, int texid);
+    void render_mesh(MeshMode mode, int texid, unsigned char* buf = nullptr);
     void render_textures(int programid, int texid_1, int texid_2, int texid_out);
 
     void init_pixel_buffer();

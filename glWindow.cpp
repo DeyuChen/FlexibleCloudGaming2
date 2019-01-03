@@ -152,14 +152,27 @@ void glWindow::render_diff_to_screen(){
     render_textures(diffProgram.id, renderedTextures[1], renderedTextures[0], 0);
 }
 
-void glWindow::render_simp_to_texture0(){
-    render_mesh(simp, renderedTextures[0]);
+void glWindow::render_simp_to_texture0(unsigned char* buf){
+    render_mesh(simp, renderedTextures[0], buf);
 }
 
 void glWindow::render_sum_to_screen(unsigned char* diff){
     if (!sumProgram.id && !init_sum_program()){
         return;
     }
+    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    render_textures(sumProgram.id, renderedTextures[0], renderedTextures[1], 0);
+}
+
+void glWindow::render_sum_to_screen(unsigned char* buf, unsigned char* diff){
+    if (!sumProgram.id && !init_sum_program()){
+        return;
+    }
+    glBindTexture(GL_TEXTURE_2D, renderedTextures[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -215,7 +228,7 @@ void glWindow::render_mesh(MeshMode mode){
     glUseProgram(0);
 }
 
-void glWindow::render_mesh(MeshMode mode, int texid){
+void glWindow::render_mesh(MeshMode mode, int texid, unsigned char* buf){
     if (texid == 0){
         // render to screen
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -226,6 +239,10 @@ void glWindow::render_mesh(MeshMode mode, int texid){
     }
 
     render_mesh(mode);
+
+    if (buf){
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
