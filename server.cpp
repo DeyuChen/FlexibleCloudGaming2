@@ -85,9 +85,7 @@ int main(int argc, char *argv[]){
         auto begin = chrono::high_resolution_clock::now();
 #endif
 
-        window.render(MeshMode::simp);
-        window.render(MeshMode::full);
-        window.render_diff();
+        window.render_diff_to_screen();
         //window.display();
 
 #ifdef SHOW_RENDERING_TIME

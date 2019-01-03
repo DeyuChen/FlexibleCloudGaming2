@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <set>
+#include <chrono>
 
 using namespace std;
 
@@ -75,6 +76,10 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+#ifdef SHOW_FRAME_DELAY
+    auto begin = chrono::high_resolution_clock::now();
+#endif
+
     bool quit = false;
     while(!quit){
         int x = 0, y = 0;
@@ -107,7 +112,7 @@ int main(int argc, char *argv[]){
         pmesh_proto->set_nvertices(window.get_nvertices(pmrIDs[0]));
         comm.send_msg();
 
-        window.render(MeshMode::simp);
+        window.render_simp_to_texture0();
 
         comm.recv_msg();
         comm.get_diff_frame(pkt);
@@ -117,9 +122,17 @@ int main(int argc, char *argv[]){
 
         if (get_present_mode() == simplified)
             memset(frame->data[0], 127, 4 * width * height);
-        window.render_sum(frame->data[0]);
+        window.render_sum_to_screen(frame->data[0]);
 
         window.display();
+
+#ifdef SHOW_FRAME_DELAY
+        auto end = chrono::high_resolution_clock::now();
+        auto dur = end - begin;
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+        cout << "frame delay: " << ms << "ms" << endl;
+        begin = chrono::high_resolution_clock::now();;
+#endif
 
         // read piggybacked vsplits
         pmesh_proto = comm.get_pmesh_proto();

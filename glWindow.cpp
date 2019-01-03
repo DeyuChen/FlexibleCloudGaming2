@@ -61,11 +61,8 @@ void glWindow::kill_window(){
 }
 
 void glWindow::mouse_motion(int x, int y){
-    float RelX = x / (float)width;
-    float RelY = y / (float)height;
-
-    azimuth += (RelX * 180);
-    elevation += (RelY * 180);
+    RelX = x;
+    RelY = y;
 }
 
 void glWindow::key_event(bool down, int key, int x, int y){
@@ -75,6 +72,8 @@ void glWindow::key_event(bool down, int key, int x, int y){
 }
 
 void glWindow::update_state(){
+    azimuth += (RelX * 180 / width);
+    elevation += (RelY * 180 / height);
     if (pressedKeys[SDLK_w]){
         viewZ += moveSpeed * cos(azimuth * 3.14159265 / 180.0);
         viewX -= moveSpeed * sin(azimuth * 3.14159265 / 180.0);
@@ -144,14 +143,43 @@ void glWindow::remove_pmesh(int id){
     }
 }
 
-void glWindow::render(MeshMode mode){
-    glUseProgram(renderProgram.id);
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-    if (mode == simp){
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTextures[0], 0);
-    } else if (mode == full){
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTextures[1], 0);
+void glWindow::render_diff_to_screen(){
+    if (!diffProgram.id && !init_diff_program()){
+        return;
     }
+    render_mesh(simp, renderedTextures[0]);
+    render_mesh(full, renderedTextures[1]);
+    render_textures(diffProgram.id, renderedTextures[1], renderedTextures[0], 0);
+}
+
+void glWindow::render_simp_to_texture0(){
+    render_mesh(simp, renderedTextures[0]);
+}
+
+void glWindow::render_sum_to_screen(unsigned char* diff){
+    if (!sumProgram.id && !init_sum_program()){
+        return;
+    }
+    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    render_textures(sumProgram.id, renderedTextures[0], renderedTextures[1], 0);
+}
+
+void glWindow::display(){
+    SDL_GL_SwapWindow(window);
+}
+
+void glWindow::read_pixels(unsigned char* buf, GLenum format){
+    glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
+}
+
+void glWindow::draw_pixels(const unsigned char* buf, GLenum format){
+    glDrawPixels(width, height, format, GL_UNSIGNED_BYTE, buf);
+}
+
+void glWindow::render_mesh(MeshMode mode){
+    glUseProgram(renderProgram.id);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClearDepth(1.0f);
@@ -184,74 +212,54 @@ void glWindow::render(MeshMode mode){
         pmesh->render(renderProgram.id, mode);
     }
 
+    glUseProgram(0);
+}
+
+void glWindow::render_mesh(MeshMode mode, int texid){
+    if (texid == 0){
+        // render to screen
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    } else {
+        // render to texture
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texid, 0);
+    }
+
+    render_mesh(mode);
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glUseProgram(0);
 }
 
-void glWindow::render_diff(){
-    if (!diffProgram.id && !init_diff_program()){
-        return;
+void glWindow::render_textures(int programid, int texid_1, int texid_2, int texid_out){
+    if (texid_out == 0){
+        // render to screen
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    } else {
+        // render to texture
+        // p.s. currently not supported by shader programs
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texid_out, 0);
     }
-
-    glBindVertexArray(pixelBuffer.VAO[0]);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClearDepth(1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(diffProgram.id);
-
-    glUniform1i(glGetUniformLocation(diffProgram.id, "Texture0"), 0);
-    glUniform1i(glGetUniformLocation(diffProgram.id, "Texture1"), 1);
+    glUseProgram(programid);
+    glUniform1i(glGetUniformLocation(programid, "Texture0"), 0);
+    glUniform1i(glGetUniformLocation(programid, "Texture1"), 1);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[0]);
+    glBindTexture(GL_TEXTURE_2D, texid_1);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
-    glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT, NULL);
-
-    glUseProgram(0);
-
-    glBindVertexArray(0);
-}
-
-void glWindow::render_sum(unsigned char* diff){
-    if (!sumProgram.id && !init_sum_program()){
-        return;
-    }
+    glBindTexture(GL_TEXTURE_2D, texid_2);
 
     glBindVertexArray(pixelBuffer.VAO[0]);
 
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClearDepth(1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glUseProgram(sumProgram.id);
-
-    glUniform1i(glGetUniformLocation(sumProgram.id, "Texture0"), 0);
-    glUniform1i(glGetUniformLocation(sumProgram.id, "Texture1"), 1);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[0]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
-    glGenerateMipmap(GL_TEXTURE_2D);
     glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT, NULL);
 
-    glUseProgram(0);
-
     glBindVertexArray(0);
-}
-
-void glWindow::display(){
-    SDL_GL_SwapWindow(window);
-}
-
-void glWindow::read_pixels(unsigned char* buf, GLenum format){
-    glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
-}
-
-void glWindow::draw_pixels(const unsigned char* buf, GLenum format){
-    glDrawPixels(width, height, format, GL_UNSIGNED_BYTE, buf);
+    glUseProgram(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void glWindow::init_pixel_buffer(){
