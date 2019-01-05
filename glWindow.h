@@ -7,11 +7,28 @@
 #include <string>
 #include <queue>
 #include <unordered_map>
+#include <set>
+#include <optional>
+
+enum RenderTarget {
+    screen,
+    texture
+};
 
 struct ShaderProgram {
     GLuint id = 0;
     GLuint vertexShader;
     GLuint fragmentShader;
+};
+
+// TODO: needs access control after multi-threaded
+template<class T>
+class Pool {
+public:
+    T get();
+    void put(T t);
+private:
+    std::set<T> available;
 };
 
 class glWindow {
@@ -39,18 +56,16 @@ public:
     int get_nvertices(int id){ return pmeshes[id]->get_nvertices(); }
     bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
-    void render_diff_to_screen();
-    void render_simp_to_texture0(unsigned char* buf = nullptr);
-    void render_sum_to_screen(unsigned char* diff);
-    void render_sum_to_screen(unsigned char* buf, unsigned char* diff);
+    int render_diff(RenderTarget target);
+    int render_simp(RenderTarget target);
+    int render_sum(int simpTexid, unsigned char* diff, RenderTarget target);
     void display();
-    void read_pixels(unsigned char* buf, GLenum format = GL_RGBA);
-    void draw_pixels(const unsigned char* buf, GLenum format = GL_RGBA);
+    void read_pixels(int texid, unsigned char* buf, GLenum format = GL_RGBA);
+    void release_texture(int texid);
 
 private:
-    void render_mesh(MeshMode mode);
-    void render_mesh(MeshMode mode, int texid, unsigned char* buf = nullptr);
-    void render_textures(int programid, int texid_1, int texid_2, int texid_out);
+    int render_mesh(MeshMode mode, RenderTarget target);
+    int render_textures(int programid, int texid_1, int texid_2, RenderTarget target);
 
     void init_pixel_buffer();
     bool init_frame_buffer();
@@ -92,6 +107,8 @@ private:
     GLuint depthBuffer;
     std::vector<GLuint> renderedTextures;   // one for simplify, one for full
     std::vector<GLenum> drawBuffers;
+
+    Pool<GLuint> texturePool;
 
     std::vector<PMeshRenderer*> pmeshes;
 

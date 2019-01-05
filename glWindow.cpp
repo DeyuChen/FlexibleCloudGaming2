@@ -7,6 +7,20 @@ const float MAX_DISTANCE = 100.0f;
 
 using namespace std;
 
+template<class T>
+T Pool<T>::get(){
+    // TODO: wait condition for multi-thread
+    assert(!available.empty());
+    T t = *available.begin();
+    available.erase(t);
+    return t;
+}
+
+template<class T>
+void Pool<T>::put(T t){
+    available.insert(t);
+}
+
 bool glWindow::create_window(const char* title, int _width, int _height){
     width = _width;
     height = _height;
@@ -143,55 +157,65 @@ void glWindow::remove_pmesh(int id){
     }
 }
 
-void glWindow::render_diff_to_screen(){
+int glWindow::render_diff(RenderTarget target){
     if (!diffProgram.id && !init_diff_program()){
-        return;
+        return -1;
     }
-    render_mesh(simp, renderedTextures[0]);
-    render_mesh(full, renderedTextures[1]);
-    render_textures(diffProgram.id, renderedTextures[1], renderedTextures[0], 0);
+    int simpTexid = render_mesh(simp, texture);
+    int fullTexid = render_mesh(full, texture);
+    int outTexid = render_textures(diffProgram.id, fullTexid, simpTexid, target);
+    texturePool.put(simpTexid);
+    texturePool.put(fullTexid);
+    return outTexid;
 }
 
-void glWindow::render_simp_to_texture0(unsigned char* buf){
-    render_mesh(simp, renderedTextures[0], buf);
+int glWindow::render_simp(RenderTarget target){
+    return render_mesh(simp, target);
 }
 
-void glWindow::render_sum_to_screen(unsigned char* diff){
+int glWindow::render_sum(int simpTexid, unsigned char* diff, RenderTarget target){
     if (!sumProgram.id && !init_sum_program()){
-        return;
+        return -1;
     }
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
+    int diffTexid = texturePool.get();
+    glBindTexture(GL_TEXTURE_2D, diffTexid);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
     glGenerateMipmap(GL_TEXTURE_2D);
-    render_textures(sumProgram.id, renderedTextures[0], renderedTextures[1], 0);
-}
-
-void glWindow::render_sum_to_screen(unsigned char* buf, unsigned char* diff){
-    if (!sumProgram.id && !init_sum_program()){
-        return;
-    }
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, renderedTextures[1]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    render_textures(sumProgram.id, renderedTextures[0], renderedTextures[1], 0);
+    int outTexid = render_textures(sumProgram.id, simpTexid, diffTexid, target);
+    texturePool.put(diffTexid);
+    return outTexid;
 }
 
 void glWindow::display(){
     SDL_GL_SwapWindow(window);
 }
 
-void glWindow::read_pixels(unsigned char* buf, GLenum format){
-    glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
+void glWindow::read_pixels(int texid, unsigned char* buf, GLenum format){
+    if (texid){
+        glBindTexture(GL_TEXTURE_2D, texid);
+        glGetTexImage(GL_TEXTURE_2D, 0, format, GL_UNSIGNED_BYTE, buf);
+    } else {
+        glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
+    }
 }
 
-void glWindow::draw_pixels(const unsigned char* buf, GLenum format){
-    glDrawPixels(width, height, format, GL_UNSIGNED_BYTE, buf);
+void glWindow::release_texture(int texid){
+    texturePool.put(texid);
 }
 
-void glWindow::render_mesh(MeshMode mode){
+int glWindow::render_mesh(MeshMode mode, RenderTarget target){
+    int outTexid;
+    if (target == screen){
+        // render to screen
+        outTexid = 0;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    } else if (target == texture){
+        // render to texture
+        outTexid = texturePool.get();
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
+    }
+
     glUseProgram(renderProgram.id);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -226,36 +250,22 @@ void glWindow::render_mesh(MeshMode mode){
     }
 
     glUseProgram(0);
-}
-
-void glWindow::render_mesh(MeshMode mode, int texid, unsigned char* buf){
-    if (texid == 0){
-        // render to screen
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else {
-        // render to texture
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texid, 0);
-    }
-
-    render_mesh(mode);
-
-    if (buf){
-        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-    }
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return outTexid;
 }
 
-void glWindow::render_textures(int programid, int texid_1, int texid_2, int texid_out){
-    if (texid_out == 0){
+int glWindow::render_textures(int programid, int texid_1, int texid_2, RenderTarget target){
+    int outTexid;
+    if (target == screen){
         // render to screen
+        outTexid = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else {
+    } else if (target == texture){
         // render to texture
-        // p.s. currently not supported by shader programs
+        outTexid = texturePool.get();
         glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texid_out, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
     }
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -277,6 +287,8 @@ void glWindow::render_textures(int programid, int texid_1, int texid_2, int texi
     glBindVertexArray(0);
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return outTexid;
 }
 
 void glWindow::init_pixel_buffer(){
@@ -324,13 +336,17 @@ bool glWindow::init_frame_buffer(){
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
 
-    renderedTextures.resize(2);
-    glGenTextures(2, renderedTextures.data());
+    renderedTextures.resize(3);
+    glGenTextures(renderedTextures.size(), renderedTextures.data());
     for (int i = 0; i < renderedTextures.size(); i++){
         glBindTexture(GL_TEXTURE_2D, renderedTextures[i]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    }
+
+    for (auto tex : renderedTextures){
+        texturePool.put(tex);
     }
 
     drawBuffers = {GL_COLOR_ATTACHMENT0};

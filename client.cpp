@@ -125,7 +125,7 @@ int main(int argc, char *argv[]){
 
         comm.send_msg(message);
 
-        window.render_simp_to_texture0();
+        int texid = window.render_simp(texture);
 
         message.Clear();
         comm.recv_msg(message);
@@ -137,7 +137,8 @@ int main(int argc, char *argv[]){
 
         if (get_present_mode() == simplified)
             memset(frame->data[0], 127, 4 * width * height);
-        window.render_sum_to_screen(frame->data[0]);
+        window.render_sum(texid, frame->data[0], screen);
+        window.release_texture(texid);
 
         window.display();
 

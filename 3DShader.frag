@@ -15,7 +15,7 @@ in vec3 ex_Normal;
 in vec3 ex_Color;
 in vec2 ex_TexCoord;
 
-layout(location = 0) out vec4 renderedTexture;
+layout(location = 0) out vec4 fragColor;
 
 void main(void){
     float ambientStrength = 0.1;
@@ -33,10 +33,10 @@ void main(void){
     vec3 specular = specularStrength * spec * lightColor;  
 
     if (hasTex){
-        renderedTexture = vec4((ambient + diffuse + specular) * texture(Texture, ex_TexCoord).rgb, 1.0);
+        fragColor = vec4((ambient + diffuse + specular) * texture(Texture, ex_TexCoord).rgb, 1.0);
     } else if (hasColor){
-        renderedTexture = vec4((ambient + diffuse + specular) * ex_Color, 1.0);
+        fragColor = vec4((ambient + diffuse + specular) * ex_Color, 1.0);
     } else {
-        renderedTexture = vec4((ambient + diffuse + specular) * defaultColor, 1.0);
+        fragColor = vec4((ambient + diffuse + specular) * defaultColor, 1.0);
     }
 }

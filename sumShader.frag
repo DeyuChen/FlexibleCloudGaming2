@@ -5,7 +5,7 @@ uniform sampler2D Texture0;
 uniform sampler2D Texture1;
 
 in vec2 ex_TexCoord;
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 void main(void){
     vec4 Color_1 = texture(Texture0, ex_TexCoord);
