@@ -32,8 +32,17 @@ PresentMode get_present_mode(){
 }
 
 int main(int argc, char *argv[]){
-    ClientComm comm("127.0.0.1", 9999);
-    proto::CommProto message;
+    Pool<proto::CommProto*> msgPool(2);
+    Pool<proto::CommProto*> msgToSend(1);
+    Pool<proto::CommProto*> msgReceived(1);
+    for (int i = 0; i < 2; i++)
+        msgPool.put(new proto::CommProto());
+
+    ClientComm comm("127.0.0.1", 9999, msgPool, msgToSend, msgReceived);
+    comm.init_sender_thread();
+    comm.init_receiver_thread();
+
+    proto::CommProto *msg;
     proto::KeyEvent *keyEvent;
     proto::PMeshProto *pmeshProto;
 
@@ -49,14 +58,14 @@ int main(int argc, char *argv[]){
 
     // receive base mesh from the server
     // TODO: currently assume there will be only one mesh
-    // TODO: it might be more efficient to handle the whole communication protocol in main
-    comm.recv_msg(message);
-
+    msg = msgReceived.get();
     PMeshController pmController;
     pmIDs.push_back(pmController.create_pmesh());
-    pmController.set_pmesh_info(pmIDs[0], message.pmesh(0).pmesh_info());
-    pmController.set_base_mesh(pmIDs[0], message.pmesh(0).base_mesh());
+    pmController.set_pmesh_info(pmIDs[0], msg->pmesh(0).pmesh_info());
+    pmController.set_base_mesh(pmIDs[0], msg->pmesh(0).base_mesh());
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
+    msg->Clear();
+    msgPool.put(msg);
 
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -85,13 +94,12 @@ int main(int argc, char *argv[]){
 
     bool quit = false;
     while(!quit){
-        message.Clear();
-
+        msg = msgPool.get();
         int x = 0, y = 0;
         SDL_GetRelativeMouseState(&x, &y);
         window.mouse_motion(x, y);
-        message.set_mouse_x(x);
-        message.set_mouse_y(y);
+        msg->set_mouse_x(x);
+        msg->set_mouse_y(y);
 
         while (SDL_PollEvent(&e) != 0){
             if (e.type == SDL_QUIT){
@@ -103,7 +111,7 @@ int main(int argc, char *argv[]){
                 else {
                     window.key_event(true, e.key.keysym.sym, x, y);
                     if (keyToSend.count(e.key.keysym.sym)){
-                        keyEvent = message.add_key_event();
+                        keyEvent = msg->add_key_event();
                         keyEvent->set_down(true);
                         keyEvent->set_key(e.key.keysym.sym);
                     }
@@ -111,7 +119,7 @@ int main(int argc, char *argv[]){
             } else if (e.type == SDL_KEYUP){
                 window.key_event(false, e.key.keysym.sym, x, y);
                 if (keyToSend.count(e.key.keysym.sym)){
-                    keyEvent = message.add_key_event();
+                    keyEvent = msg->add_key_event();
                     keyEvent->set_down(false);
                     keyEvent->set_key(e.key.keysym.sym);
                 }
@@ -119,19 +127,17 @@ int main(int argc, char *argv[]){
         }
         window.update_state();
 
-        pmeshProto = message.add_pmesh();
+        pmeshProto = msg->add_pmesh();
         pmeshProto->set_id(pmrIDs[0]);
         pmeshProto->set_nvertices(window.get_nvertices(pmrIDs[0]));
 
-        comm.send_msg(message);
+        msgToSend.put(msg);
 
         int texid = window.render_simp(texture);
 
-        message.Clear();
-        comm.recv_msg(message);
-
-        pkt->size = message.diff_frame().size();
-        pkt->data = (uint8_t*)message.diff_frame().c_str();
+        msg = msgReceived.get();
+        pkt->size = msg->diff_frame().size();
+        pkt->data = (uint8_t*)msg->diff_frame().c_str();
         decoder.decode(frame, pkt);
         av_packet_unref(pkt);
 
@@ -151,12 +157,14 @@ int main(int argc, char *argv[]){
 #endif
 
         // read piggybacked vsplits
-        if (message.pmesh_size()){
-            pmeshProto = message.mutable_pmesh(0);
+        if (msg->pmesh_size()){
+            pmeshProto = msg->mutable_pmesh(0);
             for (int i = 0; i < pmeshProto->vsplit_size(); i++){
                 pmController.add_vsplit(pmeshProto->id(), pmeshProto->vsplit(i).id(), pmeshProto->vsplit(i).vsplit());
             }
         }
+        msg->Clear();
+        msgPool.put(msg);
     }
 
     return 0;

@@ -6,9 +6,9 @@
 
 using namespace std;
 
-int Communicator::send_msg(const proto::CommProto &message){
+int Communicator::send_msg(const proto::CommProto &msg){
     string s;
-    message.SerializeToString(&s);
+    msg.SerializeToString(&s);
     size_t size = s.size();
     string ss((char*)&size, sizeof(size));
     ss += s;
@@ -16,7 +16,7 @@ int Communicator::send_msg(const proto::CommProto &message){
     return send(sockfd, ss.c_str(), ss.size(), 0);
 }
 
-int Communicator::recv_msg(proto::CommProto &message){
+int Communicator::recv_msg(proto::CommProto &msg){
     size_t size;
     recv(sockfd, &size, sizeof(size), 0);
 
@@ -25,12 +25,42 @@ int Communicator::recv_msg(proto::CommProto &message){
     while (n != size){
         n += recv(sockfd, &s[n], size - n, 0);
     }
-    message.ParseFromString(s);
+    msg.ParseFromString(s);
 
     return size;
 }
 
-ServerComm::ServerComm(unsigned short port){
+bool Communicator::init_sender_thread(){
+    return (pthread_create(&senderThread, NULL, sender_service_entry, this) == 0);
+}
+
+bool Communicator::init_receiver_thread(){
+    return (pthread_create(&receiverThread, NULL, receiver_service_entry, this) == 0);
+}
+
+void Communicator::sender_service(){
+    while (true){
+        proto::CommProto *msg = msgToSend.get();
+        send_msg(*msg);
+        msg->Clear();
+        msgPool.put(msg);
+    }
+}
+
+void Communicator::receiver_service(){
+    while (true){
+        proto::CommProto *msg = msgPool.get();
+        recv_msg(*msg);
+        msgReceived.put(msg);
+    }
+}
+
+ServerComm::ServerComm(unsigned short port,
+                       Pool<proto::CommProto*> &msgPool,
+                       Pool<proto::CommProto*> &msgToSend,
+                       Pool<proto::CommProto*> &msgReceived)
+    : Communicator(msgPool, msgToSend, msgReceived)
+{
     listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sockfd < 0) {
         cerr << "ERROR opening socket" << endl;
@@ -62,7 +92,13 @@ ServerComm::ServerComm(unsigned short port){
     }
 }
 
-ClientComm::ClientComm(string ip, unsigned short port){
+ClientComm::ClientComm(string &&ip,
+                       unsigned short port,
+                       Pool<proto::CommProto*> &msgPool,
+                       Pool<proto::CommProto*> &msgToSend,
+                       Pool<proto::CommProto*> &msgReceived)
+    : Communicator(msgPool, msgToSend, msgReceived)
+{
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         cerr << "ERROR opening socket" << endl;

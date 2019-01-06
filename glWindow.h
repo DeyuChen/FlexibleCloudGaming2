@@ -4,10 +4,10 @@
 #include "opengl.h"
 #include "PMeshRenderer.h"
 #include "VBufferInfo.h"
+#include "pool.h"
 #include <string>
 #include <queue>
 #include <unordered_map>
-#include <set>
 #include <optional>
 
 enum RenderTarget {
@@ -19,16 +19,6 @@ struct ShaderProgram {
     GLuint id = 0;
     GLuint vertexShader;
     GLuint fragmentShader;
-};
-
-// TODO: needs access control after multi-threaded
-template<class T>
-class Pool {
-public:
-    T get();
-    void put(T t);
-private:
-    std::set<T> available;
 };
 
 class glWindow {

@@ -5,6 +5,7 @@
 #include "communicator.h"
 #include "codec.h"
 #include "CommProto.pb.h"
+#include "pool.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -21,8 +22,17 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    ServerComm comm(9999);
-    proto::CommProto message;
+    Pool<proto::CommProto*> msgPool(2);
+    Pool<proto::CommProto*> msgToSend(1);
+    Pool<proto::CommProto*> msgReceived(1);
+    for (int i = 0; i < 2; i++)
+        msgPool.put(new proto::CommProto());
+
+    ServerComm comm(9999, msgPool, msgToSend, msgReceived);
+    comm.init_sender_thread();
+    comm.init_receiver_thread();
+
+    proto::CommProto *msg;
     proto::PMeshProto *pmeshProto;
     proto::VsplitProto *vsp;
 
@@ -40,11 +50,12 @@ int main(int argc, char *argv[]){
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
 
     // send base mesh to the client
-    pmeshProto = message.add_pmesh();
+    msg = msgPool.get();
+    pmeshProto = msg->add_pmesh();
     pmeshProto->set_id(pmIDs[0]);
     pmeshProto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));
     pmeshProto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
-    comm.send_msg(message);
+    msgToSend.put(msg);
 
     AVPacket *pkt = av_packet_alloc();
     if (!pkt){
@@ -66,20 +77,21 @@ int main(int argc, char *argv[]){
 
     bool quit = false;
     while(!quit){
-        message.Clear();
-        comm.recv_msg(message);
-        int x = message.mouse_x();
-        int y = message.mouse_y();
+        msg = msgReceived.get();
+        int x = msg->mouse_x();
+        int y = msg->mouse_y();
         window.mouse_motion(x, y);
 
-        for (int i = 0; i < message.key_event_size(); i++){
-            bool down = message.key_event(i).down();
-            int key = message.key_event(i).key();
+        for (int i = 0; i < msg->key_event_size(); i++){
+            bool down = msg->key_event(i).down();
+            int key = msg->key_event(i).key();
             window.key_event(down, key, x, y);
         }
         window.update_state();
 
-        window.set_nvertices(message.pmesh(0).id(), message.pmesh(0).nvertices());
+        window.set_nvertices(msg->pmesh(0).id(), msg->pmesh(0).nvertices());
+        msg->Clear();
+        msgPool.put(msg);
 
         // flush all events to prevent overflow
         SDL_PumpEvents();
@@ -106,14 +118,15 @@ int main(int argc, char *argv[]){
             //cout << pkt->size << endl;
         }
 
-        message.Clear();
+        msg = msgPool.get();
         string frameStr((char*)pkt->data, pkt->size);
-        message.set_diff_frame(frameStr);
+        av_packet_unref(pkt);
+        msg->set_diff_frame(frameStr);
 
         // piggyback some vsplits
         // TODO: dynamically determine how many vsplits to send
         // TODO: consider unreliable send; should have a vsplit request mechanism
-        pmeshProto = message.add_pmesh();
+        pmeshProto = msg->add_pmesh();
         pmeshProto->set_id(pmIDs[0]);
         for (int i = 0; i < 50; i++){
             auto [n, vsplit] = pmController.get_next_vsplit(pmIDs[0]);
@@ -123,9 +136,7 @@ int main(int argc, char *argv[]){
             vsp->set_id(n);
             vsp->set_vsplit(vsplit);
         }
-        comm.send_msg(message);
-
-        av_packet_unref(pkt);
+        msgToSend.put(msg);
     }
 
     return 0;

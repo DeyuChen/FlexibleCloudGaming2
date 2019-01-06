@@ -7,20 +7,6 @@ const float MAX_DISTANCE = 100.0f;
 
 using namespace std;
 
-template<class T>
-T Pool<T>::get(){
-    // TODO: wait condition for multi-thread
-    assert(!available.empty());
-    T t = *available.begin();
-    available.erase(t);
-    return t;
-}
-
-template<class T>
-void Pool<T>::put(T t){
-    available.insert(t);
-}
-
 bool glWindow::create_window(const char* title, int _width, int _height){
     width = _width;
     height = _height;
@@ -345,6 +331,7 @@ bool glWindow::init_frame_buffer(){
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     }
 
+    texturePool.set_capacity(renderedTextures.size());
     for (auto tex : renderedTextures){
         texturePool.put(tex);
     }
