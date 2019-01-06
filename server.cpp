@@ -29,8 +29,6 @@ int main(int argc, char *argv[]){
         msgPool.put(new proto::CommProto());
 
     ServerComm comm(9999, msgPool, msgToSend, msgReceived);
-    comm.init_sender_thread();
-    comm.init_receiver_thread();
 
     proto::CommProto *msg;
     proto::PMeshProto *pmeshProto;
@@ -80,6 +78,7 @@ int main(int argc, char *argv[]){
         msg = msgReceived.get();
         if (msg->disconnect()){
             quit = true;
+            cout << "Client disconnected, terminating" << endl;
             break;
         }
         int x = msg->mouse_x();

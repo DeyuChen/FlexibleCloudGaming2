@@ -39,8 +39,6 @@ int main(int argc, char *argv[]){
         msgPool.put(new proto::CommProto());
 
     ClientComm comm("127.0.0.1", 9999, msgPool, msgToSend, msgReceived);
-    comm.init_sender_thread();
-    comm.init_receiver_thread();
 
     proto::CommProto *msg;
     proto::KeyEvent *keyEvent;

@@ -41,12 +41,9 @@ int Communicator::recv_msg(proto::CommProto &msg){
     return size;
 }
 
-bool Communicator::init_sender_thread(){
-    return (pthread_create(&senderThread, NULL, sender_service_entry, this) == 0);
-}
-
-bool Communicator::init_receiver_thread(){
-    return (pthread_create(&receiverThread, NULL, receiver_service_entry, this) == 0);
+void Communicator::init_threads(){
+    pthread_create(&senderThread, NULL, sender_service_entry, this);
+    pthread_create(&receiverThread, NULL, receiver_service_entry, this);
 }
 
 void Communicator::sender_service(){
@@ -101,6 +98,8 @@ ServerComm::ServerComm(unsigned short port,
         cerr << "ERROR on accept" << endl;
         exit(1);
     }
+
+    init_threads();
 }
 
 ClientComm::ClientComm(string &&ip,
@@ -125,4 +124,6 @@ ClientComm::ClientComm(string &&ip,
         cerr << "ERROR on connecting" << endl;
         exit(1);
     }
+
+    init_threads();
 }

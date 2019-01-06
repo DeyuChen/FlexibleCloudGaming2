@@ -15,13 +15,11 @@ public:
 
     ~Communicator();
 
+protected:
     int send_msg(const proto::CommProto &msg);
     int recv_msg(proto::CommProto &msg);
 
-    bool init_sender_thread();
-    bool init_receiver_thread();
-
-protected:
+    void init_threads();
     static void* sender_service_entry(void* This){((Communicator*)This)->sender_service();}
     static void* receiver_service_entry(void* This){((Communicator*)This)->receiver_service();}
     void sender_service();
