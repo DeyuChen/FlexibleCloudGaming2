@@ -6,6 +6,17 @@
 
 using namespace std;
 
+Communicator::~Communicator(){
+    if (senderThread){
+        pthread_cancel(senderThread);
+        pthread_join(senderThread, NULL);
+    }
+    if (receiverThread){
+        pthread_cancel(receiverThread);
+        pthread_join(receiverThread, NULL);
+    }
+}
+
 int Communicator::send_msg(const proto::CommProto &msg){
     string s;
     msg.SerializeToString(&s);

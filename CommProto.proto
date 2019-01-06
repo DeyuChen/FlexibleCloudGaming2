@@ -26,4 +26,5 @@ message CommProto {
     repeated KeyEvent key_event = 3;
     bytes diff_frame = 4;
     repeated PMeshProto pmesh = 5;
+    bool disconnect = 6;
 }

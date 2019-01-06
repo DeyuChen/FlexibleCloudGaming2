@@ -13,6 +13,8 @@ public:
                  Pool<proto::CommProto*> &msgReceived)
         : msgPool(msgPool), msgToSend(msgToSend), msgReceived(msgReceived){};
 
+    ~Communicator();
+
     int send_msg(const proto::CommProto &msg);
     int recv_msg(proto::CommProto &msg);
 

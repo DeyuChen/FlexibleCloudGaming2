@@ -76,8 +76,12 @@ int main(int argc, char *argv[]){
     }
 
     bool quit = false;
-    while(!quit){
+    while (!quit){
         msg = msgReceived.get();
+        if (msg->disconnect()){
+            quit = true;
+            break;
+        }
         int x = msg->mouse_x();
         int y = msg->mouse_y();
         window.mouse_motion(x, y);

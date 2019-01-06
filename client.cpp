@@ -93,7 +93,7 @@ int main(int argc, char *argv[]){
 #endif
 
     bool quit = false;
-    while(!quit){
+    while (!quit){
         msg = msgPool.get();
         int x = 0, y = 0;
         SDL_GetRelativeMouseState(&x, &y);
@@ -166,6 +166,10 @@ int main(int argc, char *argv[]){
         msg->Clear();
         msgPool.put(msg);
     }
+
+    msg = msgPool.get();
+    msg->set_disconnect(true);
+    msgToSend.put(msg);
 
     return 0;
 }
