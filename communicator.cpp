@@ -46,15 +46,6 @@ void Communicator::init_threads(){
     pthread_create(&receiverThread, NULL, receiver_service_entry, this);
 }
 
-void Communicator::sender_service(){
-    while (true){
-        proto::CommProto *msg = msgToSend.get();
-        send_msg(*msg);
-        msg->Clear();
-        msgPool.put(msg);
-    }
-}
-
 void Communicator::receiver_service(){
     while (true){
         proto::CommProto *msg = msgPool.get();
@@ -65,9 +56,10 @@ void Communicator::receiver_service(){
 
 ServerComm::ServerComm(unsigned short port,
                        Pool<proto::CommProto*> &msgPool,
-                       Pool<proto::CommProto*> &msgToSend,
-                       Pool<proto::CommProto*> &msgReceived)
-    : Communicator(msgPool, msgToSend, msgReceived)
+                       Queue<proto::CommProto*> &msgToSend,
+                       Queue<proto::CommProto*> &msgReceived,
+                       Queue<tuple<int, int, string>> &vsplitToSend)
+    : Communicator(msgPool, msgToSend, msgReceived), vsplitToSend(vsplitToSend)
 {
     listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sockfd < 0) {
@@ -102,11 +94,40 @@ ServerComm::ServerComm(unsigned short port,
     init_threads();
 }
 
+void ServerComm::sender_service(){
+    unordered_map<int, proto::PMeshProto*> pmesh_lookup;
+    tuple<int, int, string> vsp_tuple;
+    while (true){
+        proto::CommProto *msg = msgToSend.get();
+
+        // TODO: dynamically determine how many vsplits to send
+        // TODO: consider unreliable send; should have a vsplit request mechanism
+        for (int i = 0; i < 50; i++){
+            if (!vsplitToSend.non_blocking_get(vsp_tuple))
+                break;
+            auto [id, n, vsplit] = vsp_tuple;
+            if (pmesh_lookup.count(id) == 0){
+                pmesh_lookup[id] = msg->add_pmesh();
+            }
+            pmesh_lookup[id]->set_id(id);
+            proto::VsplitProto *vsp = pmesh_lookup[id]->add_vsplit();
+            vsp->set_id(n);
+            vsp->set_vsplit(vsplit);
+        }
+
+        send_msg(*msg);
+        msg->Clear();
+        msgPool.put(msg);
+
+        pmesh_lookup.clear();
+    }
+}
+
 ClientComm::ClientComm(string &&ip,
                        unsigned short port,
                        Pool<proto::CommProto*> &msgPool,
-                       Pool<proto::CommProto*> &msgToSend,
-                       Pool<proto::CommProto*> &msgReceived)
+                       Queue<proto::CommProto*> &msgToSend,
+                       Queue<proto::CommProto*> &msgReceived)
     : Communicator(msgPool, msgToSend, msgReceived)
 {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -126,4 +147,13 @@ ClientComm::ClientComm(string &&ip,
     }
 
     init_threads();
+}
+
+void ClientComm::sender_service(){
+    while (true){
+        proto::CommProto *msg = msgToSend.get();
+        send_msg(*msg);
+        msg->Clear();
+        msgPool.put(msg);
+    }
 }

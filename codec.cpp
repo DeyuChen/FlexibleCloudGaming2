@@ -3,8 +3,14 @@
 
 using namespace std;
 
-Encoder::Encoder(const char *codecName, int width, int height, int bit_rate) : 
-    codecName(codecName), width(width), height(height), bit_rate(bit_rate), pts(0)
+Encoder::Encoder(const char *codecName, int width, int height, int bit_rate,
+                 Pool<proto::CommProto*> &msgPool,
+                 Queue<proto::CommProto*> &msgToSend,
+                 Pool<AVFrame*> &framePool,
+                 Queue<AVFrame*> &frameToEncode)
+    : codecName(codecName), width(width), height(height), bit_rate(bit_rate), pts(0),
+      msgPool(msgPool), msgToSend(msgToSend),
+      framePool(framePool), frameToEncode(frameToEncode)
 {
     av_register_all();
     codec = avcodec_find_encoder_by_name(codecName);
@@ -66,9 +72,23 @@ Encoder::Encoder(const char *codecName, int width, int height, int bit_rate) :
         cerr << "Failed to get sws context!" << endl;
         return;
     }
+
+    pkt = av_packet_alloc();
+    if (!pkt){
+        return;
+    }
+
+    init_thread();
 }
 
-bool Encoder::encode(AVFrame *frameRGB, AVPacket *pkt){
+Encoder::~Encoder(){
+    if (thread){
+        pthread_cancel(thread);
+        pthread_join(thread, NULL);
+    }
+}
+
+bool Encoder::encode(AVFrame *frameRGB){
     sws_scale(ctxRGB2YUV, frameRGB->data, frameRGB->linesize, 0, height, frameYUV->data, frameYUV->linesize);
 
     // TODO: support ffmpeg 4.x (avcodec_send_frame/avcodec_receive_packet)
@@ -78,10 +98,25 @@ bool Encoder::encode(AVFrame *frameRGB, AVPacket *pkt){
         cerr << "Error encoding frame" << endl;
         return false;
     }
+    framePool.put(frameRGB);
+
     if (!got_output)
         cout << "encode no output" << endl;
 
+    proto::CommProto *msg = msgPool.get();
+    string frameStr((char*)pkt->data, pkt->size);
+    av_packet_unref(pkt);
+    msg->set_diff_frame(frameStr);
+    msgToSend.put(msg);
+
     return got_output;
+}
+
+void Encoder::encoder_service(){
+    while (true){
+        AVFrame *frame = frameToEncode.get();
+        encode(frame);
+    }
 }
 
 Decoder::Decoder(const char *codecName, int width, int height) : 

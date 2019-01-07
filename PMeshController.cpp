@@ -5,6 +5,16 @@
 
 using namespace std;
 
+PMeshController::~PMeshController(){
+    pthread_t thread;
+    while (true){
+        if (!threads.non_blocking_get(thread))
+            break;
+        pthread_cancel(thread);
+        pthread_join(thread, NULL);
+    }
+}
+
 int PMeshController::create_pmesh(istream& is){
     int id = pmeshes.size();
 
@@ -111,4 +121,23 @@ void PMeshController::add_vsplit(int id, int n, const string &vsplit){
     istringstream iss(vsplit);
     pmesh->_vsplits.resize(n + 1);
     pmesh->_vsplits[n].read(iss, pmesh->_info);
+}
+
+void PMeshController::init_vsp_generator(int id){
+    tuple<int, PMeshController*> *args = new tuple<int, PMeshController*>(id, this);
+    pthread_t thread;
+    pthread_create(&thread, NULL, vsp_generator_entry, (void*)args);
+}
+
+void PMeshController::vsp_generator(int id){
+    pthread_t thread = pthread_self();
+    threads.put(thread);
+    while (true){
+        auto [n, vsplit] = get_next_vsplit(id);
+        if (n == -1)
+            break;
+        vsplits.put({0, n, vsplit});
+    }
+    threads.non_blocking_remove(thread);
+    cout << "finished sending vsplits for pmesh " << id << endl;
 }

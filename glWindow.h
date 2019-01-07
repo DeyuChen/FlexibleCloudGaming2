@@ -4,11 +4,12 @@
 #include "opengl.h"
 #include "PMeshRenderer.h"
 #include "VBufferInfo.h"
+#include "CommProto.pb.h"
 #include "pool.h"
 #include <string>
 #include <queue>
 #include <unordered_map>
-#include <optional>
+#include <pthread.h>
 
 enum RenderTarget {
     screen,
@@ -53,7 +54,7 @@ public:
     void read_pixels(int texid, unsigned char* buf, GLenum format = GL_RGBA);
     void release_texture(int texid);
 
-private:
+protected:
     int render_mesh(MeshMode mode, RenderTarget target);
     int render_textures(int programid, int texid_1, int texid_2, RenderTarget target);
 
@@ -103,6 +104,26 @@ private:
     std::vector<PMeshRenderer*> pmeshes;
 
     std::priority_queue<int, std::vector<int>, std::greater<int>> available_meshID;
+
+    pthread_t thread;
+};
+
+class glWindowServer : public glWindow {
+public:
+    glWindowServer(Pool<proto::CommProto*> &msgPool,
+                   Queue<proto::CommProto*> &msgToRender,
+                   Pool<AVFrame*> &framePool,
+                   Queue<AVFrame*> &frameToEncode) :
+        msgPool(msgPool), msgToRender(msgToRender),
+        framePool(framePool), frameToEncode(frameToEncode),
+        glWindow()
+    {}
+
+private:
+    Pool<proto::CommProto*> &msgPool;
+    Queue<proto::CommProto*> &msgToRender;
+    Pool<AVFrame*> &framePool;
+    Queue<AVFrame*> &frameToEncode;
 };
 
 #endif

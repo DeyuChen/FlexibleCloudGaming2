@@ -11,6 +11,8 @@
 #include <set>
 #include <chrono>
 
+#define SHOW_FRAME_DELAY
+
 using namespace std;
 
 const int width = 1280;
@@ -33,8 +35,9 @@ PresentMode get_present_mode(){
 
 int main(int argc, char *argv[]){
     Pool<proto::CommProto*> msgPool(2);
-    Pool<proto::CommProto*> msgToSend(1);
-    Pool<proto::CommProto*> msgReceived(1);
+    Queue<proto::CommProto*> msgToSend(1);
+    Queue<proto::CommProto*> msgReceived(1);
+    Queue<tuple<int, int, string>> vsplitReceived(50);
     for (int i = 0; i < 2; i++)
         msgPool.put(new proto::CommProto());
 
@@ -57,7 +60,7 @@ int main(int argc, char *argv[]){
     // receive base mesh from the server
     // TODO: currently assume there will be only one mesh
     msg = msgReceived.get();
-    PMeshController pmController;
+    PMeshController pmController(vsplitReceived);
     pmIDs.push_back(pmController.create_pmesh());
     pmController.set_pmesh_info(pmIDs[0], msg->pmesh(0).pmesh_info());
     pmController.set_base_mesh(pmIDs[0], msg->pmesh(0).base_mesh());
