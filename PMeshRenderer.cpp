@@ -16,8 +16,6 @@ PMeshRenderer::PMeshRenderer(const hh::PMesh& pm) : pmrs(pm), pmi(pmrs){
         vertexDataSize += 3;
     }
 
-    init_buffer(MeshMode::simp);
-    init_buffer(MeshMode::full);
     init_default_colors();
 }
 
@@ -148,11 +146,9 @@ void PMeshRenderer::update_buffer_triangle(MeshMode mode){
         pmi.goto_nvertices(pmrs._info._full_nvertices);
     }
 
-    /*
     if (vBuffer->VBO.empty()){
         init_buffer(mode);
     }
-    */
 
     vector<GLfloat> wedges(vertexDataSize * pmi._wedges.num());
 

@@ -8,7 +8,7 @@ struct VBufferInfo {
     std::vector<unsigned int> VAO;
     std::vector<unsigned int> IBO;
     std::vector<int> indSizes;
-    bool dirty;
+    bool dirty = true;
 };
 
 #endif

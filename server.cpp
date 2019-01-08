@@ -40,8 +40,8 @@ int main(int argc, char *argv[]){
         msgPool.put(new proto::CommProto());
 
     // initializing SDL window which also handles all opengl rendering
-    glWindowServer window(msgPool, msgToRender, framePool, frameToEncode);
-    window.create_window("Server", width, height);
+    glWindowServer window("Server", width, height, msgPool, msgToRender, framePool, frameToEncode);
+    window.init_render_thread();
 
     // initializing the video encoder
     Encoder encoder("libx264", width, height, 8000000, msgPool, msgToSend, framePool, frameToEncode);
@@ -100,31 +100,10 @@ int main(int argc, char *argv[]){
             int key = msg->key_event(i).key();
             window.key_event(down, key, x, y);
         }
-        window.update_state();
-        window.set_nvertices(msg->pmesh(0).id(), msg->pmesh(0).nvertices());
-        msg->Clear();
-        msgPool.put(msg);
-
-#ifdef SHOW_RENDERING_TIME
-        auto begin = chrono::high_resolution_clock::now();
-#endif
-
-        int texid = window.render_diff(texture);
-        //window.display();
-
-#ifdef SHOW_RENDERING_TIME
-        auto end = chrono::high_resolution_clock::now();
-        auto dur = end - begin;
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-        cout << "rendering time: " << ms << "ms" << endl;
-#endif
-
-        // encoding
-        frame = framePool.get();
-        window.read_pixels(texid, frame->data[0]);
-        window.release_texture(texid);
-        frameToEncode.put(frame);
+        msgToRender.put(msg);
     }
+
+    window.kill_window();
 
     return 0;
 }

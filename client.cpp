@@ -49,8 +49,8 @@ int main(int argc, char *argv[]){
 
     set<int> keyToSend = {SDLK_w, SDLK_d, SDLK_s, SDLK_a, SDLK_e, SDLK_q};
 
-    glWindow window;
-    window.create_window("Client", width, height);
+    glWindow window("Client", width, height);
+    window.create_window();
 
     Decoder decoder("h264", width, height);
 
@@ -171,6 +171,8 @@ int main(int argc, char *argv[]){
     msg = msgPool.get();
     msg->set_disconnect(true);
     msgToSend.put(msg);
+
+    window.kill_window();
 
     return 0;
 }

@@ -7,33 +7,40 @@ const float MAX_DISTANCE = 100.0f;
 
 using namespace std;
 
-bool glWindow::create_window(const char* title, int _width, int _height){
-    width = _width;
-    height = _height;
-    nPixels = width * height;
-
+glWindow::glWindow(const char* title, int width, int height) :
+                   width(width), height(height),
+                   nPixels(width*height), window(NULL),
+                   viewX(0), viewY(0), viewZ(0), moveSpeed(0.1),
+                   elevation(0), azimuth(0),
+                   pressedKeys({{SDLK_w, false}, {SDLK_d, false}, {SDLK_s, false},
+                                {SDLK_a, false}, {SDLK_e, false}, {SDLK_q, false},
+                                {SDLK_PAGEUP, false}, {SDLK_PAGEDOWN, false},
+                                {SDLK_UP, false}, {SDLK_DOWN, false}})
+{
     if (SDL_Init(SDL_INIT_VIDEO) < 0){
-        printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
-        return false;
+        cerr << "SDL could not initialize! SDL Error: " << SDL_GetError() << endl;
+        return;
     }
-
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     if (window == NULL){
-        printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
-        return false;
+        cerr << "Window could not be created! SDL Error: " << SDL_GetError() << endl;
+        return;
     }
+};
+
+bool glWindow::create_window(){
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     context = SDL_GL_CreateContext(window);
     if (context == NULL){
-        printf("OpenGL context could not be created! SDL Error: %s\n", SDL_GetError());
+        cerr << "OpenGL context could not be created! SDL Error: " << SDL_GetError() << endl;
         return false;
     }
 
     if (SDL_GL_SetSwapInterval(1) < 0){
-        printf("Warning: Unable to set VSync! SDL Error: %s\n", SDL_GetError());
+        cerr << "Warning: Unable to set VSync! SDL Error: " << SDL_GetError() << endl;
     }
 
     glViewport(0, 0, width, height);
@@ -490,14 +497,14 @@ GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
         GLint shaderCompiled = GL_FALSE;
         glGetShaderiv(shaderID, GL_COMPILE_STATUS, &shaderCompiled);
         if (shaderCompiled != GL_TRUE){
-            cerr << "Shader failed to compile" << endl;
+            cerr << "Shader failed to compile: " << filename << endl;
 
             int maxLength;
             char *log;
             glGetShaderiv(shaderID, GL_INFO_LOG_LENGTH, &maxLength);
             log = (char *)malloc(maxLength);
             glGetShaderInfoLog(shaderID, maxLength, &maxLength, log);
-            cout << log << endl;
+            cerr << log << endl;
             free(log);
 
             glDeleteShader(shaderID);
@@ -509,4 +516,22 @@ GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
     }
 
 	return shaderID;
+}
+
+void glWindowServer::render_service(){
+    create_window();
+
+    while (true){
+        proto::CommProto *msg = msgToRender.get();
+        update_state();
+        set_nvertices(msg->pmesh(0).id(), msg->pmesh(0).nvertices());
+        msg->Clear();
+        msgPool.put(msg);
+
+        int texid = render_diff(texture);
+        AVFrame *frame = framePool.get();
+        read_pixels(texid, frame->data[0]);
+        release_texture(texid);
+        frameToEncode.put(frame);
+    }
 }

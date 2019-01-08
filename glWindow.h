@@ -24,18 +24,9 @@ struct ShaderProgram {
 
 class glWindow {
 public:
-    glWindow() :
-        window(NULL), width(0), height(0),
-        viewX(0), viewY(0), viewZ(0), moveSpeed(0.1),
-        elevation(0), azimuth(0),
-        pressedKeys({{SDLK_w, false}, {SDLK_d, false}, {SDLK_s, false},
-            {SDLK_a, false}, {SDLK_e, false}, {SDLK_q, false}, {SDLK_PAGEUP, false},
-            {SDLK_PAGEDOWN, false}, {SDLK_UP, false}, {SDLK_DOWN, false}})
-    {};
+    glWindow(const char* title, int width, int height);
 
-    ~glWindow(){};
-    
-    bool create_window(const char* title, int _width, int _height);
+    bool create_window();
     void kill_window();
 
     void mouse_motion(int x, int y);
@@ -96,7 +87,7 @@ protected:
 
     GLuint frameBuffer;
     GLuint depthBuffer;
-    std::vector<GLuint> renderedTextures;   // one for simplify, one for full
+    std::vector<GLuint> renderedTextures;
     std::vector<GLenum> drawBuffers;
 
     Pool<GLuint> texturePool;
@@ -105,21 +96,30 @@ protected:
 
     std::priority_queue<int, std::vector<int>, std::greater<int>> available_meshID;
 
-    pthread_t thread;
+    SDL_Thread *thread;
 };
 
 class glWindowServer : public glWindow {
 public:
-    glWindowServer(Pool<proto::CommProto*> &msgPool,
+    glWindowServer(const char* title, int width, int height,
+                   Pool<proto::CommProto*> &msgPool,
                    Queue<proto::CommProto*> &msgToRender,
                    Pool<AVFrame*> &framePool,
                    Queue<AVFrame*> &frameToEncode) :
+        glWindow(title, width, height),
         msgPool(msgPool), msgToRender(msgToRender),
-        framePool(framePool), frameToEncode(frameToEncode),
-        glWindow()
+        framePool(framePool), frameToEncode(frameToEncode)
     {}
 
+    void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
+
 private:
+    static int render_service_entry(void* This){
+        ((glWindowServer*)This)->render_service();
+        return 0;
+    }
+    void render_service();
+
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgToRender;
     Pool<AVFrame*> &framePool;
