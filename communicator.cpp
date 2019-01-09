@@ -6,17 +6,6 @@
 
 using namespace std;
 
-Communicator::~Communicator(){
-    if (senderThread){
-        pthread_cancel(senderThread);
-        pthread_join(senderThread, NULL);
-    }
-    if (receiverThread){
-        pthread_cancel(receiverThread);
-        pthread_join(receiverThread, NULL);
-    }
-}
-
 int Communicator::send_msg(const proto::CommProto &msg){
     string s;
     msg.SerializeToString(&s);
@@ -41,26 +30,7 @@ int Communicator::recv_msg(proto::CommProto &msg){
     return size;
 }
 
-void Communicator::init_threads(){
-    pthread_create(&senderThread, NULL, sender_service_entry, this);
-    pthread_create(&receiverThread, NULL, receiver_service_entry, this);
-}
-
-void Communicator::receiver_service(){
-    while (true){
-        proto::CommProto *msg = msgPool.get();
-        recv_msg(*msg);
-        msgReceived.put(msg);
-    }
-}
-
-ServerComm::ServerComm(unsigned short port,
-                       Pool<proto::CommProto*> &msgPool,
-                       Queue<proto::CommProto*> &msgToSend,
-                       Queue<proto::CommProto*> &msgReceived,
-                       Queue<tuple<int, int, string>> &vsplitToSend)
-    : Communicator(msgPool, msgToSend, msgReceived), vsplitToSend(vsplitToSend)
-{
+ServerComm::ServerComm(unsigned short port){
     listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sockfd < 0) {
         cerr << "ERROR opening socket" << endl;
@@ -90,11 +60,55 @@ ServerComm::ServerComm(unsigned short port,
         cerr << "ERROR on accept" << endl;
         exit(1);
     }
+}
 
+ClientComm::ClientComm(string ip, unsigned short port){
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        cerr << "ERROR opening socket" << endl;
+        exit(1);
+    }
+
+    memset((char*)&remote_addr, 0, sizeof(remote_addr));
+    remote_addr.sin_family = AF_INET;
+    remote_addr.sin_addr.s_addr = inet_addr(ip.c_str());
+    remote_addr.sin_port = htons(port);
+
+    if (connect(sockfd, (struct sockaddr*)&remote_addr, sizeof(remote_addr)) < 0) {
+        cerr << "ERROR on connecting" << endl;
+        exit(1);
+    }
+}
+
+CommunicatorMT::~CommunicatorMT(){
+    if (senderThread){
+        pthread_cancel(senderThread);
+        pthread_join(senderThread, NULL);
+    }
+    if (receiverThread){
+        pthread_cancel(receiverThread);
+        pthread_join(receiverThread, NULL);
+    }
+}
+
+void CommunicatorMT::init_threads(){
+    pthread_create(&senderThread, NULL, sender_service_entry, this);
+    pthread_create(&receiverThread, NULL, receiver_service_entry, this);
+}
+
+ServerCommMT::ServerCommMT(unsigned short port,
+                           Pool<proto::CommProto*> &msgPool,
+                           Queue<proto::CommProto*> &msgToSend,
+                           Queue<proto::CommProto*> &msgReceived,
+                           Queue<tuple<int, int, string>> &vsplitToSend)
+    : ServerComm(port),
+      CommunicatorMT(msgPool, msgToSend, msgReceived),
+      vsplitToSend(vsplitToSend)
+{
     init_threads();
 }
 
-void ServerComm::sender_service(){
+void ServerCommMT::sender_service(){
     unordered_map<int, proto::PMeshProto*> pmesh_lookup;
     tuple<int, int, string> vsp_tuple;
     while (true){
@@ -123,33 +137,26 @@ void ServerComm::sender_service(){
     }
 }
 
-ClientComm::ClientComm(string &&ip,
-                       unsigned short port,
-                       Pool<proto::CommProto*> &msgPool,
-                       Queue<proto::CommProto*> &msgToSend,
-                       Queue<proto::CommProto*> &msgReceived)
-    : Communicator(msgPool, msgToSend, msgReceived)
+void ServerCommMT::receiver_service(){
+    while (true){
+        proto::CommProto *msg = msgPool.get();
+        recv_msg(*msg);
+        msgReceived.put(msg);
+    }
+}
+
+ClientCommMT::ClientCommMT(string &&ip,
+                           unsigned short port,
+                           Pool<proto::CommProto*> &msgPool,
+                           Queue<proto::CommProto*> &msgToSend,
+                           Queue<proto::CommProto*> &msgReceived)
+    : ClientComm(ip, port),
+      CommunicatorMT(msgPool, msgToSend, msgReceived)
 {
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        cerr << "ERROR opening socket" << endl;
-        exit(1);
-    }
-
-    memset((char*)&remote_addr, 0, sizeof(remote_addr));
-    remote_addr.sin_family = AF_INET;
-    remote_addr.sin_addr.s_addr = inet_addr(ip.c_str());
-    remote_addr.sin_port = htons(port);
-
-    if (connect(sockfd, (struct sockaddr*)&remote_addr, sizeof(remote_addr)) < 0) {
-        cerr << "ERROR on connecting" << endl;
-        exit(1);
-    }
-
     init_threads();
 }
 
-void ClientComm::sender_service(){
+void ClientCommMT::sender_service(){
     while (true){
         proto::CommProto *msg = msgToSend.get();
         send_msg(*msg);
@@ -157,3 +164,12 @@ void ClientComm::sender_service(){
         msgPool.put(msg);
     }
 }
+
+void ClientCommMT::receiver_service(){
+    while (true){
+        proto::CommProto *msg = msgPool.get();
+        recv_msg(*msg);
+        msgReceived.put(msg);
+    }
+}
+

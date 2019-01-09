@@ -95,17 +95,15 @@ protected:
     std::vector<PMeshRenderer*> pmeshes;
 
     std::priority_queue<int, std::vector<int>, std::greater<int>> available_meshID;
-
-    SDL_Thread *thread;
 };
 
-class glWindowServer : public glWindow {
+class glWindowServerMT : public glWindow {
 public:
-    glWindowServer(const char* title, int width, int height,
-                   Pool<proto::CommProto*> &msgPool,
-                   Queue<proto::CommProto*> &msgToRender,
-                   Pool<AVFrame*> &framePool,
-                   Queue<AVFrame*> &frameToEncode) :
+    glWindowServerMT(const char* title, int width, int height,
+                     Pool<proto::CommProto*> &msgPool,
+                     Queue<proto::CommProto*> &msgToRender,
+                     Pool<AVFrame*> &framePool,
+                     Queue<AVFrame*> &frameToEncode) :
         glWindow(title, width, height),
         msgPool(msgPool), msgToRender(msgToRender),
         framePool(framePool), frameToEncode(frameToEncode)
@@ -115,7 +113,7 @@ public:
 
 private:
     static int render_service_entry(void* This){
-        ((glWindowServer*)This)->render_service();
+        ((glWindowServerMT*)This)->render_service();
         return 0;
     }
     void render_service();
@@ -124,6 +122,8 @@ private:
     Queue<proto::CommProto*> &msgToRender;
     Pool<AVFrame*> &framePool;
     Queue<AVFrame*> &frameToEncode;
+
+    SDL_Thread *thread;
 };
 
 #endif

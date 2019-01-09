@@ -5,19 +5,14 @@ CFLAGS = -c -std=c++17
 LDFLAGS = -lSDL2 -lglut -lGL -lGLU -lglfw -lGLEW -lavformat -lavcodec -lavutil -lswscale -lHh -lpthread `pkg-config --cflags --libs protobuf`
 PROTOS = CommProto.proto PMeshInfo.proto
 SOURCES = glWindow.cpp PMeshController.cpp PMeshRenderer.cpp codec.cpp communicator.cpp $(PROTOS:.proto=.pb.cc)
-OBJECTS1 = server.o $(SOURCES:.cpp=.o)
-OBJECTS2 = client.o $(SOURCES:.cpp=.o)
+OBJECTS = $(SOURCES:.cpp=.o)
 
-EXECUTABLE1 = server
-EXECUTABLE2 = client
+EXECUTABLE = server client serverMT clientMT
 
-all: $(SOURCES) $(EXECUTABLE1) $(EXECUTABLE2)
+all: $(SOURCES) $(EXECUTABLE)
 
-$(EXECUTABLE1): $(OBJECTS1)
-	$(CC) $(LIB) $(OBJECTS1) -o $@ $(LDFLAGS)
-
-$(EXECUTABLE2): $(OBJECTS2)
-	$(CC) $(LIB) $(OBJECTS2) -o $@ $(LDFLAGS)
+$(EXECUTABLE): % : %.o $(OBJECTS)
+	$(CC) $(LIB) $(OBJECTS) $< -o $@ $(LDFLAGS)
 
 %.pb.cc : %.proto
 	protoc --cpp_out=./ $<
@@ -29,4 +24,4 @@ $(EXECUTABLE2): $(OBJECTS2)
 	$(CC) $(CFLAGS) $(INC) $< -o $@
 
 clean:
-	rm -rf *.o $(EXECUTABLE1) $(EXECUTABLE2) *.pb.cc *.pb.h
+	rm -rf *.o $(EXECUTABLE) *.pb.cc *.pb.h

@@ -518,7 +518,7 @@ GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
 	return shaderID;
 }
 
-void glWindowServer::render_service(){
+void glWindowServerMT::render_service(){
     create_window();
 
     while (true){

@@ -9,26 +9,43 @@
 
 class Communicator {
 public:
-    Communicator(Pool<proto::CommProto*> &msgPool,
-                 Queue<proto::CommProto*> &msgToSend,
-                 Queue<proto::CommProto*> &msgReceived)
-        : msgPool(msgPool), msgToSend(msgToSend), msgReceived(msgReceived){};
-
-    ~Communicator();
-
-protected:
     int send_msg(const proto::CommProto &msg);
     int recv_msg(proto::CommProto &msg);
 
-    void init_threads();
-    static void* sender_service_entry(void* This){ ((Communicator*)This)->sender_service(); }
-    static void* receiver_service_entry(void* This){ ((Communicator*)This)->receiver_service(); }
-    virtual void sender_service() = 0;
-    void receiver_service();
-
+protected:
     int sockfd;
     struct sockaddr_in local_addr;
     struct sockaddr_in remote_addr;
+};
+
+class ServerComm : public Communicator {
+public:
+    ServerComm(unsigned short port);
+protected:
+    int listen_sockfd;
+};
+
+class ClientComm : public Communicator {
+public:
+    ClientComm(std::string ip, unsigned short port);
+};
+
+class CommunicatorMT {
+public:
+    CommunicatorMT(Pool<proto::CommProto*> &msgPool,
+                   Queue<proto::CommProto*> &msgToSend,
+                   Queue<proto::CommProto*> &msgReceived)
+        : msgPool(msgPool), msgToSend(msgToSend), msgReceived(msgReceived)
+    {}
+
+    ~CommunicatorMT();
+
+protected:
+    void init_threads();
+    static void* sender_service_entry(void* This){ ((CommunicatorMT*)This)->sender_service(); }
+    static void* receiver_service_entry(void* This){ ((CommunicatorMT*)This)->receiver_service(); }
+    virtual void sender_service() = 0;
+    virtual void receiver_service() = 0;
 
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgToSend;
@@ -37,32 +54,32 @@ protected:
     pthread_t senderThread, receiverThread;
 };
 
-class ServerComm : public Communicator {
+class ServerCommMT : public ServerComm, public CommunicatorMT {
 public:
-    ServerComm(unsigned short port,
-               Pool<proto::CommProto*> &msgPool,
-               Queue<proto::CommProto*> &msgToSend,
-               Queue<proto::CommProto*> &msgReceived,
-               Queue<std::tuple<int, int, std::string>> &vsplitToSend);
+    ServerCommMT(unsigned short port,
+                 Pool<proto::CommProto*> &msgPool,
+                 Queue<proto::CommProto*> &msgToSend,
+                 Queue<proto::CommProto*> &msgReceived,
+                 Queue<std::tuple<int, int, std::string>> &vsplitToSend);
 
 private:
     void sender_service();
-
-    int listen_sockfd;
+    void receiver_service();
 
     Queue<std::tuple<int, int, std::string>> &vsplitToSend;
 };
 
-class ClientComm : public Communicator {
+class ClientCommMT : public ClientComm, public CommunicatorMT {
 public:
-    ClientComm(std::string &&ip,
-               unsigned short port,
-               Pool<proto::CommProto*> &msgPool,
-               Queue<proto::CommProto*> &msgToSend,
-               Queue<proto::CommProto*> &msgReceived);
+    ClientCommMT(std::string &&ip,
+                 unsigned short port,
+                 Pool<proto::CommProto*> &msgPool,
+                 Queue<proto::CommProto*> &msgToSend,
+                 Queue<proto::CommProto*> &msgReceived);
 
 private:
     void sender_service();
+    void receiver_service();
 };
 
 #endif
