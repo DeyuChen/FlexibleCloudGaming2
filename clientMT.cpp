@@ -41,7 +41,7 @@ int main(int argc, char *argv[]){
     for (int i = 0; i < 2; i++)
         msgPool.put(new proto::CommProto());
 
-    ClientCommMT comm("127.0.0.1", 9999, msgPool, msgToSend, msgReceived);
+    ClientCommMT comm("127.0.0.1", 9999, msgPool, msgToSend, msgReceived, vsplitReceived);
 
     proto::CommProto *msg;
     proto::KeyEvent *keyEvent;
@@ -57,10 +57,14 @@ int main(int argc, char *argv[]){
     vector<int> pmIDs;
     vector<int> pmrIDs;
 
+    // nmake sure we will not add vsplits when the pmesh is used for rendering
+    pthread_mutex_t pmesh_lock;
+    pthread_mutex_init(&pmesh_lock, NULL);
+
     // receive base mesh from the server
     // TODO: currently assume there will be only one mesh
     msg = msgReceived.get();
-    PMeshControllerMT pmController(vsplitReceived);
+    PMeshControllerClientMT pmController(vsplitReceived, pmesh_lock);
     pmIDs.push_back(pmController.create_pmesh());
     pmController.set_pmesh_info(pmIDs[0], msg->pmesh(0).pmesh_info());
     pmController.set_base_mesh(pmIDs[0], msg->pmesh(0).base_mesh());
@@ -134,13 +138,17 @@ int main(int argc, char *argv[]){
 
         msgToSend.put(msg);
 
+        pthread_mutex_lock(&pmesh_lock);
         int texid = window.render_simp(texture);
+        pthread_mutex_unlock(&pmesh_lock);
 
         msg = msgReceived.get();
         pkt->size = msg->diff_frame().size();
         pkt->data = (uint8_t*)msg->diff_frame().c_str();
         decoder.decode(frame, pkt);
         av_packet_unref(pkt);
+        msg->Clear();
+        msgPool.put(msg);
 
         if (get_present_mode() == simplified)
             memset(frame->data[0], 127, 4 * width * height);
@@ -156,16 +164,6 @@ int main(int argc, char *argv[]){
         cout << "frame delay: " << ms << "ms" << endl;
         begin = chrono::high_resolution_clock::now();;
 #endif
-
-        // read piggybacked vsplits
-        if (msg->pmesh_size()){
-            pmeshProto = msg->mutable_pmesh(0);
-            for (int i = 0; i < pmeshProto->vsplit_size(); i++){
-                pmController.add_vsplit(pmeshProto->id(), pmeshProto->vsplit(i).id(), pmeshProto->vsplit(i).vsplit());
-            }
-        }
-        msg->Clear();
-        msgPool.put(msg);
     }
 
     msg = msgPool.get();

@@ -113,7 +113,7 @@ void PMeshController::add_vsplit(int id, int n, const string &vsplit){
     pmesh->_vsplits[n].read(iss, pmesh->_info);
 }
 
-PMeshControllerMT::~PMeshControllerMT(){
+PMeshControllerServerMT::~PMeshControllerServerMT(){
     pthread_t thread;
     while (true){
         if (!threads.non_blocking_get(thread))
@@ -123,21 +123,51 @@ PMeshControllerMT::~PMeshControllerMT(){
     }
 }
 
-void PMeshControllerMT::init_vsp_generator(int id){
-    tuple<int, PMeshControllerMT*> *args = new tuple<int, PMeshControllerMT*>(id, this);
-    pthread_t thread;
-    pthread_create(&thread, NULL, vsp_generator_entry, (void*)args);
+int PMeshControllerServerMT::create_pmesh(istream& is){
+    int pid = PMeshController::create_pmesh(is);
+    init_vsp_serializer(pid);
+    return pid;
 }
 
-void PMeshControllerMT::vsp_generator(int id){
+void PMeshControllerServerMT::init_vsp_serializer(int id){
+    tuple<int, PMeshControllerServerMT*> *args = new tuple<int, PMeshControllerServerMT*>(id, this);
+    pthread_t thread;
+    pthread_create(&thread, NULL, vsp_serializer_entry, (void*)args);
+}
+
+void PMeshControllerServerMT::vsp_serializer(int id){
     pthread_t thread = pthread_self();
     threads.put(thread);
     while (true){
         auto [n, vsplit] = get_next_vsplit(id);
         if (n == -1)
             break;
-        vsplits.put({0, n, vsplit});
+        vsplits.put({0, n, move(vsplit)});
     }
     threads.non_blocking_remove(thread);
     cout << "finished sending vsplits for pmesh " << id << endl;
+}
+
+PMeshControllerClientMT::PMeshControllerClientMT(
+        Queue<tuple<int, int, string>> &vsplits,
+        pthread_mutex_t &lock)
+    : vsplits(vsplits), lock(lock)
+{
+    init_vsp_deserializer();
+}
+
+PMeshControllerClientMT::~PMeshControllerClientMT(){
+    if (thread){
+        pthread_cancel(thread);
+        pthread_join(thread, NULL);
+    }
+}
+
+void PMeshControllerClientMT::vsp_deserializer(){
+    while (true){
+        auto [id, n, vsplit] = vsplits.get();
+        pthread_mutex_lock(&lock);
+        add_vsplit(id, n, vsplit);
+        pthread_mutex_unlock(&lock);
+    }
 }

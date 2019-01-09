@@ -151,10 +151,11 @@ int main(int argc, char *argv[]){
 #endif
 
         // read piggybacked vsplits
-        if (message.pmesh_size()){
-            pmeshProto = message.mutable_pmesh(0);
-            for (int i = 0; i < pmeshProto->vsplit_size(); i++){
-                pmController.add_vsplit(pmeshProto->id(), pmeshProto->vsplit(i).id(), pmeshProto->vsplit(i).vsplit());
+        for (int i = 0; i < message.pmesh_size(); i++){
+            pmeshProto = message.mutable_pmesh(i);
+            int id = pmeshProto->id();
+            for (int j = 0; j < pmeshProto->vsplit_size(); j++){
+                pmController.add_vsplit(id, pmeshProto->vsplit(j).id(), pmeshProto->vsplit(j).vsplit());
             }
         }
     }

@@ -149,9 +149,11 @@ ClientCommMT::ClientCommMT(string &&ip,
                            unsigned short port,
                            Pool<proto::CommProto*> &msgPool,
                            Queue<proto::CommProto*> &msgToSend,
-                           Queue<proto::CommProto*> &msgReceived)
+                           Queue<proto::CommProto*> &msgReceived,
+                           Queue<tuple<int, int, string>> &vsplitReceived)
     : ClientComm(ip, port),
-      CommunicatorMT(msgPool, msgToSend, msgReceived)
+      CommunicatorMT(msgPool, msgToSend, msgReceived),
+      vsplitReceived(vsplitReceived)
 {
     init_threads();
 }
@@ -169,6 +171,16 @@ void ClientCommMT::receiver_service(){
     while (true){
         proto::CommProto *msg = msgPool.get();
         recv_msg(*msg);
+
+        // read piggybacked vsplits
+        for (int i = 0; i < msg->pmesh_size(); i++){
+            proto::PMeshProto *pmeshProto = msg->mutable_pmesh(i);
+            int id = pmeshProto->id();
+            for (int j = 0; j < pmeshProto->vsplit_size(); j++){
+                vsplitReceived.put({id, pmeshProto->vsplit(j).id(), pmeshProto->vsplit(j).vsplit()});
+            }
+        }
+
         msgReceived.put(msg);
     }
 }

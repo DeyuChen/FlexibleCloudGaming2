@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
     vector<int> pmIDs;
     vector<int> pmrIDs;
 
-    PMeshControllerMT pmController(vsplitToSend);
+    PMeshControllerServerMT pmController(vsplitToSend);
     ifstream ifs(argv[1], ifstream::in);
     pmIDs.push_back(pmController.create_pmesh(ifs));
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
@@ -76,8 +76,6 @@ int main(int argc, char *argv[]){
     pmeshProto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));
     pmeshProto->set_base_mesh(pmController.get_base_mesh(pmIDs[0]));
     msgToSend.put(msg);
-
-    pmController.init_vsp_generator(pmIDs[0]);
 
     bool quit = false;
     while (!quit){

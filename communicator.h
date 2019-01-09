@@ -75,11 +75,14 @@ public:
                  unsigned short port,
                  Pool<proto::CommProto*> &msgPool,
                  Queue<proto::CommProto*> &msgToSend,
-                 Queue<proto::CommProto*> &msgReceived);
+                 Queue<proto::CommProto*> &msgReceived,
+                 Queue<std::tuple<int, int, std::string>> &vsplitReceived);
 
 private:
     void sender_service();
     void receiver_service();
+
+    Queue<std::tuple<int, int, std::string>> &vsplitReceived;
 };
 
 #endif
