@@ -16,11 +16,6 @@ using namespace std;
 const int width = 1280;
 const int height = 960;
 
-enum PresentMode {
-    simplified,
-    patched
-};
-
 PresentMode pmode = patched;
 
 void switch_present_mode(){

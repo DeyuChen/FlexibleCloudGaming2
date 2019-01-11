@@ -22,7 +22,8 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    Pool<proto::CommProto*> msgPool(2);
+    Pool<proto::CommProto*> sendMsgPool(1);
+    Pool<proto::CommProto*> receiveMsgPool(1);
     Queue<proto::CommProto*> msgToSend(1);
     Queue<proto::CommProto*> msgReceived(1);
     Queue<proto::CommProto*> msgToRender(1);
@@ -31,20 +32,18 @@ int main(int argc, char *argv[]){
     Queue<AVFrame*> frameToEncode(1);
 
     // initializing the communicator which handle network communications
-    ServerCommMT comm(9999, msgPool, msgToSend, msgReceived, vsplitToSend);
+    ServerCommMT comm(9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitToSend);
     proto::CommProto *msg;
     proto::PMeshProto *pmeshProto;
-    proto::VsplitProto *vsp;
 
-    for (int i = 0; i < 2; i++)
-        msgPool.put(new proto::CommProto());
+    sendMsgPool.put(new proto::CommProto());
+    receiveMsgPool.put(new proto::CommProto());
 
     // initializing SDL window which also handles all opengl rendering
-    glWindowServerMT window("Server", width, height, msgPool, msgToRender, framePool, frameToEncode);
-    window.init_render_thread();
+    glWindowServerMT window("Server", width, height, receiveMsgPool, msgToRender, framePool, frameToEncode);
 
     // initializing the video encoder
-    EncoderMT encoder("libx264", width, height, 8000000, msgPool, msgToSend, framePool, frameToEncode);
+    EncoderMT encoder("libx264", width, height, 8000000, sendMsgPool, msgToSend, framePool, frameToEncode);
 
     AVFrame *frame = av_frame_alloc();
     if (!frame) {
@@ -70,7 +69,7 @@ int main(int argc, char *argv[]){
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
 
     // send base mesh to the client
-    msg = msgPool.get();
+    msg = sendMsgPool.get();
     pmeshProto = msg->add_pmesh();
     pmeshProto->set_id(pmIDs[0]);
     pmeshProto->set_pmesh_info(pmController.get_pmesh_info(pmIDs[0]));

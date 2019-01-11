@@ -37,8 +37,6 @@ public:
     ~EncoderMT();
 
 private:
-    bool encode(AVFrame *frameRGB);
-
     void init_thread(){ pthread_create(&thread, NULL, encoder_service_entry, this); }
     static void* encoder_service_entry(void* This){ ((EncoderMT*)This)->encoder_service(); }
     void encoder_service();
@@ -66,6 +64,31 @@ private:
     AVCodecContext *c;
     AVFrame *frameYUV;
     SwsContext *ctxYUV2RGB;
+};
+
+class DecoderMT : public Decoder {
+public:
+    DecoderMT(const char *codecName, int width, int height,
+              Pool<proto::CommProto*> &msgPool,
+              Queue<proto::CommProto*> &msgReceived,
+              Pool<AVFrame*> &framePool,
+              Queue<AVFrame*> &frameDecoded);
+
+    ~DecoderMT();
+
+private:
+    void init_thread(){ pthread_create(&thread, NULL, decoder_service_entry, this); }
+    static void* decoder_service_entry(void* This){ ((DecoderMT*)This)->decoder_service(); }
+    void decoder_service();
+
+    AVPacket *pkt;
+
+    Pool<proto::CommProto*> &msgPool;
+    Queue<proto::CommProto*> &msgReceived;
+    Pool<AVFrame*> &framePool;
+    Queue<AVFrame*> &frameDecoded;
+
+    pthread_t thread;
 };
 
 #endif

@@ -97,12 +97,13 @@ void CommunicatorMT::init_threads(){
 }
 
 ServerCommMT::ServerCommMT(unsigned short port,
-                           Pool<proto::CommProto*> &msgPool,
+                           Pool<proto::CommProto*> &sendMsgPool,
+                           Pool<proto::CommProto*> &receiveMsgPool,
                            Queue<proto::CommProto*> &msgToSend,
                            Queue<proto::CommProto*> &msgReceived,
                            Queue<tuple<int, int, string>> &vsplitToSend)
     : ServerComm(port),
-      CommunicatorMT(msgPool, msgToSend, msgReceived),
+      CommunicatorMT(sendMsgPool, receiveMsgPool, msgToSend, msgReceived),
       vsplitToSend(vsplitToSend)
 {
     init_threads();
@@ -131,7 +132,7 @@ void ServerCommMT::sender_service(){
 
         send_msg(*msg);
         msg->Clear();
-        msgPool.put(msg);
+        sendMsgPool.put(msg);
 
         pmesh_lookup.clear();
     }
@@ -139,7 +140,7 @@ void ServerCommMT::sender_service(){
 
 void ServerCommMT::receiver_service(){
     while (true){
-        proto::CommProto *msg = msgPool.get();
+        proto::CommProto *msg = receiveMsgPool.get();
         recv_msg(*msg);
         msgReceived.put(msg);
     }
@@ -147,12 +148,13 @@ void ServerCommMT::receiver_service(){
 
 ClientCommMT::ClientCommMT(string &&ip,
                            unsigned short port,
-                           Pool<proto::CommProto*> &msgPool,
+                           Pool<proto::CommProto*> &sendMsgPool,
+                           Pool<proto::CommProto*> &receiveMsgPool,
                            Queue<proto::CommProto*> &msgToSend,
                            Queue<proto::CommProto*> &msgReceived,
                            Queue<tuple<int, int, string>> &vsplitReceived)
     : ClientComm(ip, port),
-      CommunicatorMT(msgPool, msgToSend, msgReceived),
+      CommunicatorMT(sendMsgPool, receiveMsgPool, msgToSend, msgReceived),
       vsplitReceived(vsplitReceived)
 {
     init_threads();
@@ -163,13 +165,13 @@ void ClientCommMT::sender_service(){
         proto::CommProto *msg = msgToSend.get();
         send_msg(*msg);
         msg->Clear();
-        msgPool.put(msg);
+        sendMsgPool.put(msg);
     }
 }
 
 void ClientCommMT::receiver_service(){
     while (true){
-        proto::CommProto *msg = msgPool.get();
+        proto::CommProto *msg = receiveMsgPool.get();
         recv_msg(*msg);
 
         // read piggybacked vsplits

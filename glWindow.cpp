@@ -518,6 +518,18 @@ GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
 	return shaderID;
 }
 
+glWindowServerMT::glWindowServerMT(const char* title, int width, int height,
+                                   Pool<proto::CommProto*> &msgPool,
+                                   Queue<proto::CommProto*> &msgToRender,
+                                   Pool<AVFrame*> &framePool,
+                                   Queue<AVFrame*> &frameToEncode)
+    : glWindow(title, width, height),
+      msgPool(msgPool), msgToRender(msgToRender),
+      framePool(framePool), frameToEncode(frameToEncode)
+{
+    init_render_thread();
+}
+
 void glWindowServerMT::render_service(){
     create_window();
 
@@ -533,5 +545,41 @@ void glWindowServerMT::render_service(){
         read_pixels(texid, frame->data[0]);
         release_texture(texid);
         frameToEncode.put(frame);
+    }
+}
+
+glWindowClientMT::glWindowClientMT(const char* title, int width, int height, PresentMode &pmode,
+                                   Queue<proto::CommProto*> &msgToUpdate,
+                                   Queue<proto::CommProto*> &msgToSend,
+                                   Pool<AVFrame*> &framePool,
+                                   Queue<AVFrame*> &frameDecoded)
+    : glWindow(title, width, height), pmode(pmode),
+      msgToUpdate(msgToUpdate), msgToSend(msgToSend),
+      framePool(framePool), frameDecoded(frameDecoded)
+{
+    init_render_thread();
+}
+
+void glWindowClientMT::render_service(){
+    create_window();
+
+    while (true){
+        proto::CommProto *msg = msgToUpdate.get();
+        update_state();
+        for (int i = 0; i < pmeshes.size(); i++){
+            proto::PMeshProto *pmeshProto = msg->add_pmesh();
+            pmeshProto->set_id(0);
+            pmeshProto->set_nvertices(get_nvertices(0));
+        }
+        msgToSend.put(msg);
+
+        int texid = render_simp(texture);
+        AVFrame *frame = frameDecoded.get();
+        if (pmode == simplified)
+            memset(frame->data[0], 127, 4 * width * height);
+        render_sum(texid, frame->data[0], screen);
+        release_texture(texid);
+        framePool.put(frame);
+        display();
     }
 }

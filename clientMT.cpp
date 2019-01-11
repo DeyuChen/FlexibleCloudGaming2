@@ -18,41 +18,34 @@ using namespace std;
 const int width = 1280;
 const int height = 960;
 
-enum PresentMode {
-    simplified,
-    patched
-};
-
 PresentMode pmode = patched;
 
 void switch_present_mode(){
     pmode = (pmode == simplified)? patched : simplified;
 }
 
-PresentMode get_present_mode(){
-    return pmode;
-}
-
 int main(int argc, char *argv[]){
-    Pool<proto::CommProto*> msgPool(2);
+    Pool<proto::CommProto*> sendMsgPool(1);
+    Pool<proto::CommProto*> receiveMsgPool(1);
+    Queue<proto::CommProto*> msgToUpdate(1);
     Queue<proto::CommProto*> msgToSend(1);
     Queue<proto::CommProto*> msgReceived(1);
     Queue<tuple<int, int, string>> vsplitReceived(50);
-    for (int i = 0; i < 2; i++)
-        msgPool.put(new proto::CommProto());
+    Pool<AVFrame*> framePool(1);
+    Queue<AVFrame*> frameDecoded(1);
 
-    ClientCommMT comm("127.0.0.1", 9999, msgPool, msgToSend, msgReceived, vsplitReceived);
-
+    ClientCommMT comm("127.0.0.1", 9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitReceived);
     proto::CommProto *msg;
     proto::KeyEvent *keyEvent;
-    proto::PMeshProto *pmeshProto;
+
+    sendMsgPool.put(new proto::CommProto());
+    receiveMsgPool.put(new proto::CommProto());
 
     set<int> keyToSend = {SDLK_w, SDLK_d, SDLK_s, SDLK_a, SDLK_e, SDLK_q};
 
-    glWindow window("Client", width, height);
-    window.create_window();
+    glWindowClientMT window("Client", width, height, pmode, msgToUpdate, msgToSend, framePool, frameDecoded);
 
-    Decoder decoder("h264", width, height);
+    DecoderMT decoder("h264", width, height, receiveMsgPool, msgReceived, framePool, frameDecoded);
 
     vector<int> pmIDs;
     vector<int> pmrIDs;
@@ -65,20 +58,18 @@ int main(int argc, char *argv[]){
     // TODO: currently assume there will be only one mesh
     msg = msgReceived.get();
     PMeshControllerClientMT pmController(vsplitReceived, pmesh_lock);
+    pthread_mutex_lock(&pmesh_lock);
+    // TODO: these should be handled by thread
     pmIDs.push_back(pmController.create_pmesh());
     pmController.set_pmesh_info(pmIDs[0], msg->pmesh(0).pmesh_info());
     pmController.set_base_mesh(pmIDs[0], msg->pmesh(0).base_mesh());
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
+    pthread_mutex_unlock(&pmesh_lock);
     msg->Clear();
-    msgPool.put(msg);
+    receiveMsgPool.put(msg);
 
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
-
-    AVPacket *pkt = av_packet_alloc();
-    if (!pkt){
-        return 1;
-    }
 
     AVFrame *frame = av_frame_alloc();
     if (!frame) {
@@ -92,6 +83,7 @@ int main(int argc, char *argv[]){
         cerr << "Could not allocate the video frame data" << endl;
         return 1;
     }
+    framePool.put(frame);
 
 #ifdef SHOW_FRAME_DELAY
     auto begin = chrono::high_resolution_clock::now();
@@ -99,7 +91,7 @@ int main(int argc, char *argv[]){
 
     bool quit = false;
     while (!quit){
-        msg = msgPool.get();
+        msg = sendMsgPool.get();
         int x = 0, y = 0;
         SDL_GetRelativeMouseState(&x, &y);
         window.mouse_motion(x, y);
@@ -130,32 +122,7 @@ int main(int argc, char *argv[]){
                 }
             }
         }
-        window.update_state();
-
-        pmeshProto = msg->add_pmesh();
-        pmeshProto->set_id(pmrIDs[0]);
-        pmeshProto->set_nvertices(window.get_nvertices(pmrIDs[0]));
-
-        msgToSend.put(msg);
-
-        pthread_mutex_lock(&pmesh_lock);
-        int texid = window.render_simp(texture);
-        pthread_mutex_unlock(&pmesh_lock);
-
-        msg = msgReceived.get();
-        pkt->size = msg->diff_frame().size();
-        pkt->data = (uint8_t*)msg->diff_frame().c_str();
-        decoder.decode(frame, pkt);
-        av_packet_unref(pkt);
-        msg->Clear();
-        msgPool.put(msg);
-
-        if (get_present_mode() == simplified)
-            memset(frame->data[0], 127, 4 * width * height);
-        window.render_sum(texid, frame->data[0], screen);
-        window.release_texture(texid);
-
-        window.display();
+        msgToUpdate.put(msg);
 
 #ifdef SHOW_FRAME_DELAY
         auto end = chrono::high_resolution_clock::now();
@@ -166,7 +133,7 @@ int main(int argc, char *argv[]){
 #endif
     }
 
-    msg = msgPool.get();
+    msg = sendMsgPool.get();
     msg->set_disconnect(true);
     msgToSend.put(msg);
 

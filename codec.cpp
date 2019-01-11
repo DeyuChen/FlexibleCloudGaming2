@@ -108,23 +108,17 @@ EncoderMT::~EncoderMT(){
     }
 }
 
-bool EncoderMT::encode(AVFrame *frameRGB){
-    int got_output = Encoder::encode(frameRGB, pkt);
-    framePool.put(frameRGB);
-
-    proto::CommProto *msg = msgPool.get();
-    string frameStr((char*)pkt->data, pkt->size);
-    av_packet_unref(pkt);
-    msg->set_diff_frame(frameStr);
-    msgToSend.put(msg);
-
-    return got_output;
-}
-
 void EncoderMT::encoder_service(){
     while (true){
         AVFrame *frame = frameToEncode.get();
-        encode(frame);
+        encode(frame, pkt);
+        framePool.put(frame);
+
+        proto::CommProto *msg = msgPool.get();
+        string frameStr((char*)pkt->data, pkt->size);
+        av_packet_unref(pkt);
+        msg->set_diff_frame(frameStr);
+        msgToSend.put(msg);
     }
 }
 
@@ -186,4 +180,42 @@ bool Decoder::decode(AVFrame *frameRGB, AVPacket *pkt){
     sws_scale(ctxYUV2RGB, frameYUV->data, frameYUV->linesize, 0, height, frameRGB->data, frameRGB->linesize);
 
     return true;
+}
+
+DecoderMT::DecoderMT(const char *codecName, int width, int height,
+                     Pool<proto::CommProto*> &msgPool,
+                     Queue<proto::CommProto*> &msgReceived,
+                     Pool<AVFrame*> &framePool,
+                     Queue<AVFrame*> &frameDecoded)
+    : Decoder(codecName, width, height),
+      msgPool(msgPool), msgReceived(msgReceived),
+      framePool(framePool), frameDecoded(frameDecoded)
+{
+    pkt = av_packet_alloc();
+    if (!pkt){
+        return;
+    }
+
+    init_thread();
+}
+
+DecoderMT::~DecoderMT(){
+    if (thread){
+        pthread_cancel(thread);
+        pthread_join(thread, NULL);
+    }
+}
+
+void DecoderMT::decoder_service(){
+    while (true){
+        proto::CommProto *msg = msgReceived.get();
+        pkt->size = msg->diff_frame().size();
+        pkt->data = (uint8_t*)msg->diff_frame().c_str();
+        AVFrame *frame = framePool.get();
+        decode(frame, pkt);
+        av_packet_unref(pkt);
+        msg->Clear();
+        msgPool.put(msg);
+        frameDecoded.put(frame);
+    }
 }

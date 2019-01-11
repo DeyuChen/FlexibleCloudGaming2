@@ -11,6 +11,11 @@
 #include <unordered_map>
 #include <pthread.h>
 
+enum PresentMode {
+    simplified,
+    patched
+};
+
 enum RenderTarget {
     screen,
     texture
@@ -103,15 +108,10 @@ public:
                      Pool<proto::CommProto*> &msgPool,
                      Queue<proto::CommProto*> &msgToRender,
                      Pool<AVFrame*> &framePool,
-                     Queue<AVFrame*> &frameToEncode) :
-        glWindow(title, width, height),
-        msgPool(msgPool), msgToRender(msgToRender),
-        framePool(framePool), frameToEncode(frameToEncode)
-    {}
-
-    void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
+                     Queue<AVFrame*> &frameToEncode);
 
 private:
+    void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
     static int render_service_entry(void* This){
         ((glWindowServerMT*)This)->render_service();
         return 0;
@@ -122,6 +122,32 @@ private:
     Queue<proto::CommProto*> &msgToRender;
     Pool<AVFrame*> &framePool;
     Queue<AVFrame*> &frameToEncode;
+
+    SDL_Thread *thread;
+};
+
+class glWindowClientMT : public glWindow {
+public:
+    glWindowClientMT(const char* title, int width, int height, PresentMode &pmode,
+                     Queue<proto::CommProto*> &msgToUpdate,
+                     Queue<proto::CommProto*> &msgToSend,
+                     Pool<AVFrame*> &framePool,
+                     Queue<AVFrame*> &frameDecoded);
+
+private:
+    void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
+    static int render_service_entry(void* This){
+        ((glWindowClientMT*)This)->render_service();
+        return 0;
+    }
+    void render_service();
+
+    PresentMode &pmode;
+
+    Queue<proto::CommProto*> &msgToUpdate;
+    Queue<proto::CommProto*> &msgToSend;
+    Pool<AVFrame*> &framePool;
+    Queue<AVFrame*> &frameDecoded;
 
     SDL_Thread *thread;
 };

@@ -32,10 +32,12 @@ public:
 
 class CommunicatorMT {
 public:
-    CommunicatorMT(Pool<proto::CommProto*> &msgPool,
+    CommunicatorMT(Pool<proto::CommProto*> &sendMsgPool,
+                   Pool<proto::CommProto*> &receiveMsgPool,
                    Queue<proto::CommProto*> &msgToSend,
                    Queue<proto::CommProto*> &msgReceived)
-        : msgPool(msgPool), msgToSend(msgToSend), msgReceived(msgReceived)
+        : sendMsgPool(sendMsgPool), receiveMsgPool(receiveMsgPool),
+          msgToSend(msgToSend), msgReceived(msgReceived)
     {}
 
     ~CommunicatorMT();
@@ -47,7 +49,8 @@ protected:
     virtual void sender_service() = 0;
     virtual void receiver_service() = 0;
 
-    Pool<proto::CommProto*> &msgPool;
+    Pool<proto::CommProto*> &sendMsgPool;
+    Pool<proto::CommProto*> &receiveMsgPool;
     Queue<proto::CommProto*> &msgToSend;
     Queue<proto::CommProto*> &msgReceived;
 
@@ -57,7 +60,8 @@ protected:
 class ServerCommMT : public ServerComm, public CommunicatorMT {
 public:
     ServerCommMT(unsigned short port,
-                 Pool<proto::CommProto*> &msgPool,
+                 Pool<proto::CommProto*> &sendMsgPool,
+                 Pool<proto::CommProto*> &receiveMsgPool,
                  Queue<proto::CommProto*> &msgToSend,
                  Queue<proto::CommProto*> &msgReceived,
                  Queue<std::tuple<int, int, std::string>> &vsplitToSend);
@@ -73,7 +77,8 @@ class ClientCommMT : public ClientComm, public CommunicatorMT {
 public:
     ClientCommMT(std::string &&ip,
                  unsigned short port,
-                 Pool<proto::CommProto*> &msgPool,
+                 Pool<proto::CommProto*> &sendMsgPool,
+                 Pool<proto::CommProto*> &receiveMsgPool,
                  Queue<proto::CommProto*> &msgToSend,
                  Queue<proto::CommProto*> &msgReceived,
                  Queue<std::tuple<int, int, std::string>> &vsplitReceived);
