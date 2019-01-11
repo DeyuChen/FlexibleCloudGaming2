@@ -53,6 +53,15 @@ int main(int argc, char *argv[]){
     pmController.set_base_mesh(pmIDs[0], message.pmesh(0).base_mesh());
     pmrIDs.push_back(window.add_pmesh(pmController.get_pmesh(pmIDs[0])));
 
+    // read piggybacked vsplits
+    for (int i = 0; i < message.pmesh_size(); i++){
+        pmeshProto = message.mutable_pmesh(i);
+        int id = pmeshProto->id();
+        for (int j = 0; j < pmeshProto->vsplit_size(); j++){
+            pmController.add_vsplit(id, pmeshProto->vsplit(j).id(), pmeshProto->vsplit(j).vsplit());
+        }
+    }
+
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
