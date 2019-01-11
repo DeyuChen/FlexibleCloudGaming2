@@ -3,6 +3,7 @@
 
 #include <set>
 #include <queue>
+#include <deque>
 #include <pthread.h>
 
 template<class T>
@@ -83,6 +84,7 @@ public:
     T get();
     bool non_blocking_get(T &t);
     void put(const T &t);
+    void non_blocking_put(const T &t);
 
 private:
     std::queue<T> available;
@@ -134,6 +136,62 @@ void Queue<T>::put(const T &t){
     available.push(t);
     pthread_cond_signal(&not_empty);
     pthread_mutex_unlock(&mutex);
+}
+
+// drop the oldest item in the queue if full
+template<class T>
+void Queue<T>::non_blocking_put(const T &t){
+    pthread_mutex_lock(&mutex);
+    while (available.size() >= capacity){
+        available.pop();
+    }
+    available.push(t);
+    pthread_cond_signal(&not_empty);
+    pthread_mutex_unlock(&mutex);
+}
+
+template<class T>
+class Deque {
+public:
+    Deque(int capacity = 0);
+    void set_capacity(int v){ capacity = v; }
+    void non_blocking_put(const T &t);
+    T peek_back();
+
+private:
+    std::queue<T> available;
+    int capacity;
+    pthread_mutex_t mutex;
+    pthread_cond_t not_empty, not_full;
+};
+
+template<class T>
+Deque<T>::Deque(int capacity) : capacity(capacity){
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&not_empty, NULL);
+    pthread_cond_init(&not_full, NULL);
+}
+
+template<class T>
+void Deque<T>::non_blocking_put(const T &t){
+    pthread_mutex_lock(&mutex);
+    while (available.size() >= capacity){
+        available.pop_front();
+    }
+    available.push_back(t);
+    pthread_cond_signal(&not_empty);
+    pthread_mutex_unlock(&mutex);
+}
+
+template<class T>
+T Deque<T>::peek_back(){
+    pthread_mutex_lock(&mutex);
+    while (available.empty()){
+        pthread_cond_wait(&not_empty, &mutex);
+    }
+    T t = *available.back();
+    pthread_mutex_unlock(&mutex);
+    return t;
 }
 
 #endif

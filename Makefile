@@ -4,7 +4,7 @@ INC = -Iinclude/libHh
 CFLAGS = -c -std=c++17
 LDFLAGS = -lSDL2 -lglut -lGL -lGLU -lglfw -lGLEW -lavformat -lavcodec -lavutil -lswscale -lHh -lpthread `pkg-config --cflags --libs protobuf`
 PROTOS = CommProto.proto PMeshInfo.proto
-SOURCES = glWindow.cpp PMeshController.cpp PMeshRenderer.cpp codec.cpp communicator.cpp $(PROTOS:.proto=.pb.cc)
+SOURCES = glWindow.cpp PMeshController.cpp PMeshRenderer.cpp codec.cpp communicator.cpp tokenGenerator.cpp $(PROTOS:.proto=.pb.cc)
 OBJECTS = $(SOURCES:.cpp=.o)
 
 EXECUTABLE = server client serverMT clientMT

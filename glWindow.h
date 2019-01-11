@@ -132,7 +132,8 @@ public:
                      Queue<proto::CommProto*> &msgToUpdate,
                      Queue<proto::CommProto*> &msgToSend,
                      Pool<AVFrame*> &framePool,
-                     Queue<AVFrame*> &frameDecoded);
+                     Queue<AVFrame*> &frameDecoded,
+                     Queue<bool> &tokenBucket);
 
 private:
     void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
@@ -148,6 +149,7 @@ private:
     Queue<proto::CommProto*> &msgToSend;
     Pool<AVFrame*> &framePool;
     Queue<AVFrame*> &frameDecoded;
+    Queue<bool> &tokenBucket;
 
     SDL_Thread *thread;
 };

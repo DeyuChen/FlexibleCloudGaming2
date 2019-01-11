@@ -4,6 +4,7 @@
 #include "glWindow.h"
 #include "communicator.h"
 #include "codec.h"
+#include "tokenGenerator.h"
 #include "CommProto.pb.h"
 #include <iostream>
 #include <fstream>
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]){
     Queue<tuple<int, int, string>> vsplitReceived(50);
     Pool<AVFrame*> framePool(1);
     Queue<AVFrame*> frameDecoded(1);
+    Queue<bool> tokenBucket(3);
 
     ClientCommMT comm("127.0.0.1", 9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitReceived);
     proto::CommProto *msg;
@@ -43,7 +45,7 @@ int main(int argc, char *argv[]){
 
     set<int> keyToSend = {SDLK_w, SDLK_d, SDLK_s, SDLK_a, SDLK_e, SDLK_q};
 
-    glWindowClientMT window("Client", width, height, pmode, msgToUpdate, msgToSend, framePool, frameDecoded);
+    glWindowClientMT window("Client", width, height, pmode, msgToUpdate, msgToSend, framePool, frameDecoded, tokenBucket);
 
     DecoderMT decoder("h264", width, height, receiveMsgPool, msgReceived, framePool, frameDecoded);
 
@@ -84,6 +86,9 @@ int main(int argc, char *argv[]){
         return 1;
     }
     framePool.put(frame);
+
+    // token bucket for rate control
+    TokenGenerator tokenGen(tokenBucket, 30);
 
 #ifdef SHOW_FRAME_DELAY
     auto begin = chrono::high_resolution_clock::now();

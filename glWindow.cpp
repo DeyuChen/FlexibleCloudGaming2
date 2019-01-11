@@ -552,10 +552,12 @@ glWindowClientMT::glWindowClientMT(const char* title, int width, int height, Pre
                                    Queue<proto::CommProto*> &msgToUpdate,
                                    Queue<proto::CommProto*> &msgToSend,
                                    Pool<AVFrame*> &framePool,
-                                   Queue<AVFrame*> &frameDecoded)
+                                   Queue<AVFrame*> &frameDecoded,
+                                   Queue<bool> &tokenBucket)
     : glWindow(title, width, height), pmode(pmode),
       msgToUpdate(msgToUpdate), msgToSend(msgToSend),
-      framePool(framePool), frameDecoded(frameDecoded)
+      framePool(framePool), frameDecoded(frameDecoded),
+      tokenBucket(tokenBucket)
 {
     init_render_thread();
 }
@@ -573,7 +575,10 @@ void glWindowClientMT::render_service(){
         }
         msgToSend.put(msg);
 
+        // use token bucket for rate control
+        // TODO: warp old diff frame if diff frame does not arrive on time
         int texid = render_simp(texture);
+        tokenBucket.get();
         AVFrame *frame = frameDecoded.get();
         if (pmode == simplified)
             memset(frame->data[0], 127, 4 * width * height);
