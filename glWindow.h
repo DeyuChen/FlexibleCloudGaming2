@@ -1,11 +1,13 @@
 #ifndef GLWINDOW_H
 #define GLWINDOW_H
 
+#include "ffmpeg.h"
 #include "opengl.h"
 #include "PMeshRenderer.h"
 #include "VBufferInfo.h"
-#include "CommProto.pb.h"
 #include "pool.h"
+#include "frame3d.h"
+#include "CommProto.pb.h"
 #include <string>
 #include <queue>
 #include <unordered_map>
@@ -107,8 +109,8 @@ public:
     glWindowServerMT(const char* title, int width, int height,
                      Pool<proto::CommProto*> &msgPool,
                      Queue<proto::CommProto*> &msgToRender,
-                     Pool<AVFrame*> &framePool,
-                     Queue<AVFrame*> &frameToEncode);
+                     Pool<Frame3D*> &framePool,
+                     Queue<Frame3D*> &frameToEncode);
 
 private:
     void init_render_thread(){ thread = SDL_CreateThread(render_service_entry, "render", this); }
@@ -120,8 +122,8 @@ private:
 
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgToRender;
-    Pool<AVFrame*> &framePool;
-    Queue<AVFrame*> &frameToEncode;
+    Pool<Frame3D*> &framePool;
+    Queue<Frame3D*> &frameToEncode;
 
     SDL_Thread *thread;
 };
@@ -131,7 +133,6 @@ public:
     glWindowClientMT(const char* title, int width, int height, PresentMode &pmode,
                      Queue<proto::CommProto*> &msgToUpdate,
                      Queue<proto::CommProto*> &msgToSend,
-                     Pool<AVFrame*> &framePool,
                      Queue<AVFrame*> &frameDecoded,
                      Queue<bool> &tokenBucket);
 
@@ -147,7 +148,6 @@ private:
 
     Queue<proto::CommProto*> &msgToUpdate;
     Queue<proto::CommProto*> &msgToSend;
-    Pool<AVFrame*> &framePool;
     Queue<AVFrame*> &frameDecoded;
     Queue<bool> &tokenBucket;
 

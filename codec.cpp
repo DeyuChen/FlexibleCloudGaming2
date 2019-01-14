@@ -87,8 +87,8 @@ bool Encoder::encode(AVFrame *frameRGB, AVPacket *pkt){
 EncoderMT::EncoderMT(const char *codecName, int width, int height, int bit_rate,
                      Pool<proto::CommProto*> &msgPool,
                      Queue<proto::CommProto*> &msgToSend,
-                     Pool<AVFrame*> &framePool,
-                     Queue<AVFrame*> &frameToEncode)
+                     Pool<Frame3D*> &framePool,
+                     Queue<Frame3D*> &frameToEncode)
     : Encoder(codecName, width, height, bit_rate),
       msgPool(msgPool), msgToSend(msgToSend),
       framePool(framePool), frameToEncode(frameToEncode)
@@ -110,8 +110,8 @@ EncoderMT::~EncoderMT(){
 
 void EncoderMT::encoder_service(){
     while (true){
-        AVFrame *frame = frameToEncode.get();
-        encode(frame, pkt);
+        Frame3D *frame = frameToEncode.get();
+        encode(frame->color, pkt);
         framePool.put(frame);
 
         proto::CommProto *msg = msgPool.get();
@@ -185,11 +185,10 @@ bool Decoder::decode(AVFrame *frameRGB, AVPacket *pkt){
 DecoderMT::DecoderMT(const char *codecName, int width, int height,
                      Pool<proto::CommProto*> &msgPool,
                      Queue<proto::CommProto*> &msgReceived,
-                     Pool<AVFrame*> &framePool,
                      Queue<AVFrame*> &frameDecoded)
     : Decoder(codecName, width, height),
       msgPool(msgPool), msgReceived(msgReceived),
-      framePool(framePool), frameDecoded(frameDecoded)
+      frameDecoded(frameDecoded)
 {
     pkt = av_packet_alloc();
     if (!pkt){
@@ -211,7 +210,7 @@ void DecoderMT::decoder_service(){
         proto::CommProto *msg = msgReceived.get();
         pkt->size = msg->diff_frame().size();
         pkt->data = (uint8_t*)msg->diff_frame().c_str();
-        AVFrame *frame = framePool.get();
+        AVFrame *frame = frameDecoded.get();
         decode(frame, pkt);
         av_packet_unref(pkt);
         msg->Clear();

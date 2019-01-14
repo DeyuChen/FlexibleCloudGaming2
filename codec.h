@@ -3,6 +3,7 @@
 
 #include "ffmpeg.h"
 #include "pool.h"
+#include "frame3d.h"
 #include "CommProto.pb.h"
 #include <string>
 #include <pthread.h>
@@ -31,8 +32,8 @@ public:
     EncoderMT(const char *codecName, int width, int height, int bit_rate,
               Pool<proto::CommProto*> &msgPool,
               Queue<proto::CommProto*> &msgToSend,
-              Pool<AVFrame*> &framePool,
-              Queue<AVFrame*> &frameToEncode);
+              Pool<Frame3D*> &framePool,
+              Queue<Frame3D*> &frameToEncode);
 
     ~EncoderMT();
 
@@ -45,8 +46,8 @@ private:
 
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgToSend;
-    Pool<AVFrame*> &framePool;
-    Queue<AVFrame*> &frameToEncode;
+    Pool<Frame3D*> &framePool;
+    Queue<Frame3D*> &frameToEncode;
 
     pthread_t thread;
 };
@@ -71,7 +72,6 @@ public:
     DecoderMT(const char *codecName, int width, int height,
               Pool<proto::CommProto*> &msgPool,
               Queue<proto::CommProto*> &msgReceived,
-              Pool<AVFrame*> &framePool,
               Queue<AVFrame*> &frameDecoded);
 
     ~DecoderMT();
@@ -85,7 +85,6 @@ private:
 
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgReceived;
-    Pool<AVFrame*> &framePool;
     Queue<AVFrame*> &frameDecoded;
 
     pthread_t thread;

@@ -32,8 +32,7 @@ int main(int argc, char *argv[]){
     Queue<proto::CommProto*> msgToSend(1);
     Queue<proto::CommProto*> msgReceived(1);
     Queue<tuple<int, int, string>> vsplitReceived(50);
-    Pool<AVFrame*> framePool(1);
-    Queue<AVFrame*> frameDecoded(1);
+    Queue<AVFrame*> frameDecoded(3);
     Queue<bool> tokenBucket(3);
 
     ClientCommMT comm("127.0.0.1", 9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitReceived);
@@ -45,9 +44,9 @@ int main(int argc, char *argv[]){
 
     set<int> keyToSend = {SDLK_w, SDLK_d, SDLK_s, SDLK_a, SDLK_e, SDLK_q};
 
-    glWindowClientMT window("Client", width, height, pmode, msgToUpdate, msgToSend, framePool, frameDecoded, tokenBucket);
+    glWindowClientMT window("Client", width, height, pmode, msgToUpdate, msgToSend, frameDecoded, tokenBucket);
 
-    DecoderMT decoder("h264", width, height, receiveMsgPool, msgReceived, framePool, frameDecoded);
+    DecoderMT decoder("h264", width, height, receiveMsgPool, msgReceived, frameDecoded);
 
     vector<int> pmIDs;
     vector<int> pmrIDs;
@@ -73,19 +72,22 @@ int main(int argc, char *argv[]){
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    AVFrame *frame = av_frame_alloc();
-    if (!frame) {
-        cerr << "Could not allocate video frame" << endl;
-        return 1;
+    AVFrame *frame;
+    for (int i = 0; i < 3; i++){
+        frame = av_frame_alloc();
+        if (!frame) {
+            cerr << "Could not allocate video frame" << endl;
+            return 1;
+        }
+        frame->format = AV_PIX_FMT_RGBA;
+        frame->width  = width;
+        frame->height = height;
+        if (av_frame_get_buffer(frame, 32) < 0){
+            cerr << "Could not allocate the video frame data" << endl;
+            return 1;
+        }
+        frameDecoded.put(frame);
     }
-    frame->format = AV_PIX_FMT_RGBA;
-    frame->width  = width;
-    frame->height = height;
-    if (av_frame_get_buffer(frame, 32) < 0){
-        cerr << "Could not allocate the video frame data" << endl;
-        return 1;
-    }
-    framePool.put(frame);
 
     // token bucket for rate control
     TokenGenerator tokenGen(tokenBucket, 30);

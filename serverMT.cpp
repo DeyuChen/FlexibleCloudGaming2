@@ -6,6 +6,7 @@
 #include "codec.h"
 #include "CommProto.pb.h"
 #include "pool.h"
+#include "frame3d.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -28,8 +29,8 @@ int main(int argc, char *argv[]){
     Queue<proto::CommProto*> msgReceived(1);
     Queue<proto::CommProto*> msgToRender(1);
     Queue<tuple<int, int, string>> vsplitToSend(50);
-    Pool<AVFrame*> framePool(1);
-    Queue<AVFrame*> frameToEncode(1);
+    Pool<Frame3D*> framePool(1);
+    Queue<Frame3D*> frameToEncode(1);
 
     // initializing the communicator which handle network communications
     ServerCommMT comm(9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitToSend);
@@ -45,18 +46,7 @@ int main(int argc, char *argv[]){
     // initializing the video encoder
     EncoderMT encoder("libx264", width, height, 8000000, sendMsgPool, msgToSend, framePool, frameToEncode);
 
-    AVFrame *frame = av_frame_alloc();
-    if (!frame) {
-        cerr << "Could not allocate video frame" << endl;
-        return 1;
-    }
-    frame->format = AV_PIX_FMT_RGBA;
-    frame->width  = width;
-    frame->height = height;
-    if (av_frame_get_buffer(frame, 32) < 0){
-        cerr << "Could not allocate the video frame data" << endl;
-        return 1;
-    }
+    Frame3D *frame = new Frame3D(width, height, AV_PIX_FMT_RGBA);
     framePool.put(frame);
 
     // initializing the progressive mesh controller

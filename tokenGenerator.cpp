@@ -5,7 +5,7 @@
 using namespace std;
 
 TokenGenerator::TokenGenerator(Queue<bool> &tokenBucket, int fps)
-    : tokenBucket(tokenBucket), ms(1000 / 30)
+    : tokenBucket(tokenBucket), ms(1000 / fps)
 {
     init_token_gen();
 }
