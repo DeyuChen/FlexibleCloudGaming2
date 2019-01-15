@@ -4,9 +4,9 @@
 #include "glWindow.h"
 #include "communicator.h"
 #include "codec.h"
-#include "CommProto.pb.h"
 #include "pool.h"
 #include "frame3d.h"
+#include "CommProto.pb.h"
 #include <iostream>
 #include <fstream>
 #include <vector>

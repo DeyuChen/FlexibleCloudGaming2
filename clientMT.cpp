@@ -4,6 +4,8 @@
 #include "glWindow.h"
 #include "communicator.h"
 #include "codec.h"
+#include "pool.h"
+#include "frame3d.h"
 #include "tokenGenerator.h"
 #include "CommProto.pb.h"
 #include <iostream>
@@ -32,7 +34,7 @@ int main(int argc, char *argv[]){
     Queue<proto::CommProto*> msgToSend(1);
     Queue<proto::CommProto*> msgReceived(1);
     Queue<tuple<int, int, string>> vsplitReceived(50);
-    Queue<AVFrame*> frameDecoded(3);
+    Queue<Frame3D*> frameDecoded(3);
     Queue<bool> tokenBucket(3);
 
     ClientCommMT comm("127.0.0.1", 9999, sendMsgPool, receiveMsgPool, msgToSend, msgReceived, vsplitReceived);
@@ -60,7 +62,6 @@ int main(int argc, char *argv[]){
     msg = msgReceived.get();
     PMeshControllerClientMT pmController(vsplitReceived, pmesh_lock);
     pthread_mutex_lock(&pmesh_lock);
-    // TODO: these should be handled by thread
     pmIDs.push_back(pmController.create_pmesh());
     pmController.set_pmesh_info(pmIDs[0], msg->pmesh(0).pmesh_info());
     pmController.set_base_mesh(pmIDs[0], msg->pmesh(0).base_mesh());
@@ -72,20 +73,9 @@ int main(int argc, char *argv[]){
     SDL_Event e;
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    AVFrame *frame;
+    Frame3D *frame;
     for (int i = 0; i < 3; i++){
-        frame = av_frame_alloc();
-        if (!frame) {
-            cerr << "Could not allocate video frame" << endl;
-            return 1;
-        }
-        frame->format = AV_PIX_FMT_RGBA;
-        frame->width  = width;
-        frame->height = height;
-        if (av_frame_get_buffer(frame, 32) < 0){
-            cerr << "Could not allocate the video frame data" << endl;
-            return 1;
-        }
+        frame = new Frame3D(width, height, AV_PIX_FMT_RGBA);
         frameDecoded.put(frame);
     }
 

@@ -20,11 +20,17 @@ message PMeshProto {
     repeated VsplitProto vsplit = 5;
 }
 
+message Frame3DProto {
+    bytes view_matrix = 1;
+    bytes color = 2;
+    bytes depth = 3;
+}
+
 message CommProto {
     int32 mouse_x = 1;
     int32 mouse_y = 2;
     repeated KeyEvent key_event = 3;
-    bytes diff_frame = 4;
+    Frame3DProto diff_frame = 4;
     repeated PMeshProto pmesh = 5;
     bool disconnect = 6;
 }

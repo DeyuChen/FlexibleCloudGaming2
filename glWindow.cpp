@@ -4,8 +4,13 @@
 
 const float MIN_DISTANCE = 0.1f;
 const float MAX_DISTANCE = 100.0f;
+const int HOLE_FILL_ROUND = 1;
 
 using namespace std;
+
+inline int getIndex(int x, int y, int width){
+    return y * width + x;
+}
 
 glWindow::glWindow(const char* title, int width, int height) :
                    width(width), height(height),
@@ -150,12 +155,27 @@ void glWindow::remove_pmesh(int id){
     }
 }
 
-int glWindow::render_diff(RenderTarget target){
+int glWindow::render_diff(RenderTarget target, float* depth){
     if (!diffProgram.id && !init_diff_program()){
         return -1;
     }
+    // TODO: depth retrieving is too slow, need to find a way to speed it up
+    // maybe using gl_FragCoord to write to texture in frag shader
     int simpTexid = render_mesh(simp, texture);
+    if (depth != NULL){
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, simpDepth.data());
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
     int fullTexid = render_mesh(full, texture);
+    if (depth != NULL){
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, fullDepth.data());
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+    for (int i = 0; i < nPixels; i++){
+        depth[i] = min(simpDepth[i], fullDepth[i]);
+    }
     int outTexid = render_textures(diffProgram.id, fullTexid, simpTexid, target);
     texturePool.put(simpTexid);
     texturePool.put(fullTexid);
@@ -192,6 +212,23 @@ void glWindow::read_pixels(int texid, unsigned char* buf, GLenum format){
     }
 }
 
+glm::mat4 glWindow::get_viewMatrix(){
+    glPushMatrix();
+    glLoadIdentity();
+    gluLookAt(0, 0, 0, 0, 0, -1, 0, 1, 0);
+
+    glRotatef(elevation, 1, 0, 0);
+    glRotatef(azimuth, 0, 1, 0);
+    glTranslatef(viewX, viewY, viewZ);
+
+    glm::mat4 view, projection;
+    glGetFloatv(GL_MODELVIEW_MATRIX, glm::value_ptr(view));
+    glGetFloatv(GL_PROJECTION_MATRIX, glm::value_ptr(projection));
+    glPopMatrix();
+
+    return projection * view;
+}
+
 void glWindow::release_texture(int texid){
     texturePool.put(texid);
 }
@@ -216,6 +253,7 @@ int glWindow::render_mesh(MeshMode mode, RenderTarget target){
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Set lookat point
+    glPushMatrix();
     glLoadIdentity();
     gluLookAt(0, 0, 0, 0, 0, -1, 0, 1, 0);
 
@@ -242,6 +280,7 @@ int glWindow::render_mesh(MeshMode mode, RenderTarget target){
         pmesh->render(renderProgram.id, mode);
     }
 
+    glPopMatrix();
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -284,6 +323,81 @@ int glWindow::render_textures(int programid, int texid_1, int texid_2, RenderTar
     return outTexid;
 }
 
+void glWindow::render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm::mat4 &targetView){
+    if (!warpProgram.id && !init_warp_program())
+        return;
+
+    int outTexid = texturePool.get();
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
+
+    glUseProgram(warpProgram.id);
+    glPushMatrix();
+    glLoadIdentity();
+    gluLookAt(0, 0, 0, 0, 0, -1, 0, 1, 0);
+
+    glBindVertexArray(warpBuffer.VAO[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(float), nPixels * sizeof(float), frame->color->data[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, 3 * nPixels * sizeof(float), nPixels * sizeof(float), frame->depth);
+
+    glm::mat4 mvp = targetView * glm::inverse(frame->viewMatrix);
+    glUniformMatrix4fv(uLocMVP, 1, GL_FALSE, glm::value_ptr(mvp));
+
+    float grey = 127.0 / 255.0;
+    glClearColor(grey, grey, grey, 1.0f);
+    glClearDepth(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDrawElements(GL_POINTS, nPixels, GL_UNSIGNED_INT, NULL);
+    glBindTexture(GL_TEXTURE_2D, outTexid);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, warpedFrame);
+
+    // hole filling
+    // TODO: it is too slow, needs to be done in GPU somehow
+    int index;
+    unsigned char *buf = new unsigned char[4 * nPixels];
+    float *depth = new float[nPixels];
+    glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, depth);
+
+    for (int n = 0; n < HOLE_FILL_ROUND; n++){
+        index = width + 1;
+        memcpy(buf, warpedFrame, 4 * nPixels);
+        for (int h = 1; h < height - 1; h++){
+            for (int w = 1; w < width - 1; w++){
+                if (depth[index] == 1){
+                    int count = 0, rsum = 0, gsum = 0, bsum = 0;
+                    for (int y = h - 1; y <= h + 1; y++){
+                        for (int x = w - 1; x <= w + 1; x++){
+                            int index2 = getIndex(x, y, width);
+                            if (depth[index2] != 1){
+                                count++;
+                                rsum += (int)buf[4 * index2];
+                                gsum += (int)buf[4 * index2 + 1];
+                                bsum += (int)buf[4 * index2 + 2];
+                            }
+                        }
+                    }
+                    if (count > 0){
+                        warpedFrame[4 * index] = rsum / count;
+                        warpedFrame[4 * index + 1] = gsum / count;
+                        warpedFrame[4 * index + 2] = bsum / count;
+                    }
+                }
+                index++;
+            }
+            index += 2;
+        }
+    }
+    delete[] buf;
+    delete[] depth;
+
+    glBindVertexArray(0);
+    glPopMatrix();
+    glUseProgram(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    release_texture(outTexid);
+}
+
 void glWindow::init_pixel_buffer(){
     if (pixelBuffer.VBO.size())
         return;
@@ -320,6 +434,52 @@ void glWindow::init_pixel_buffer(){
     glBindVertexArray(0);
 }
 
+void glWindow::init_warp_buffer(){
+    if (warpBuffer.VBO.size())
+        return;
+
+    warpBuffer.VAO.resize(1);
+    warpBuffer.VBO.resize(1);
+    warpBuffer.IBO.resize(1);
+    glGenVertexArrays(1, warpBuffer.VAO.data());
+    glGenBuffers(1, warpBuffer.VBO.data());
+    glGenBuffers(1, warpBuffer.IBO.data());
+
+    glBindVertexArray(warpBuffer.VAO[0]);
+
+    // preset pixel 2D locations
+    glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[0]);
+    vector<float> pixelVertices(4 * nPixels);
+    int count = 0;
+    for (int i = 0; i < height; i++){
+        for (int j = 0; j < width; j++){
+            pixelVertices[count++] = (float)j * 2.0 / width - 1.0;
+            pixelVertices[count++] = (float)i * 2.0 / height - 1.0;
+        }
+    }
+    glBufferData(GL_ARRAY_BUFFER, 4 * nPixels * sizeof(float), pixelVertices.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // colors
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(float), (void*)(2 * nPixels * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // depths
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)(3 * nPixels * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    // index
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, warpBuffer.IBO[0]);
+    vector<GLuint> pixelIndices(nPixels);
+    for (int i = 0; i < nPixels; i++){
+        pixelIndices[i] = i;
+    }
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * nPixels, pixelIndices.data(), GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
 bool glWindow::init_frame_buffer(){
     glGenFramebuffers(1, &frameBuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
@@ -327,6 +487,7 @@ bool glWindow::init_frame_buffer(){
     glGenRenderbuffers(1, &depthBuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
 
     renderedTextures.resize(3);
@@ -412,6 +573,10 @@ bool glWindow::init_warp_program(){
         return false;
     }
 
+    uLocMVP = glGetUniformLocation(warpProgram.id, "mvp");
+
+    init_warp_buffer();
+
     return true;
 }
 
@@ -435,6 +600,9 @@ bool glWindow::init_diff_program(){
         cerr << "Failed to link shader program" << endl;
         return false;
     }
+
+    simpDepth.resize(nPixels);
+    fullDepth.resize(nPixels);
 
     return true;
 }
@@ -533,6 +701,7 @@ glWindowServerMT::glWindowServerMT(const char* title, int width, int height,
 void glWindowServerMT::render_service(){
     create_window();
 
+    // TODO: the server should be able to drop some rendering task if it is lag behind too much
     while (true){
         proto::CommProto *msg = msgToRender.get();
         update_state();
@@ -540,10 +709,11 @@ void glWindowServerMT::render_service(){
         msg->Clear();
         msgPool.put(msg);
 
-        int texid = render_diff(texture);
         Frame3D *frame = framePool.get();
+        int texid = render_diff(texture, frame->depth);
         read_pixels(texid, frame->color->data[0]);
         release_texture(texid);
+        frame->viewMatrix = get_viewMatrix();
         frameToEncode.put(frame);
     }
 }
@@ -551,12 +721,13 @@ void glWindowServerMT::render_service(){
 glWindowClientMT::glWindowClientMT(const char* title, int width, int height, PresentMode &pmode,
                                    Queue<proto::CommProto*> &msgToUpdate,
                                    Queue<proto::CommProto*> &msgToSend,
-                                   Queue<AVFrame*> &frameDecoded,
+                                   Queue<Frame3D*> &frameDecoded,
                                    Queue<bool> &tokenBucket)
     : glWindow(title, width, height), pmode(pmode),
       msgToUpdate(msgToUpdate), msgToSend(msgToSend),
       frameDecoded(frameDecoded), tokenBucket(tokenBucket)
 {
+    warpedFrame.resize(4 * nPixels);
     init_render_thread();
 }
 
@@ -574,13 +745,22 @@ void glWindowClientMT::render_service(){
         msgToSend.put(msg);
 
         // use token bucket for rate control
-        // TODO: warp old diff frame if diff frame does not arrive on time
+        // warp old diff frame if diff frame does not arrive on time
         int texid = render_simp(texture);
         tokenBucket.get();
-        AVFrame *frame = frameDecoded.peek_back();
-        if (pmode == simplified)
-            memset(frame->data[0], 127, 4 * width * height);
-        render_sum(texid, frame->data[0], screen);
+        Frame3D *frame = frameDecoded.peek_back();
+        if (pmode == simplified){
+            memset(frame->color->data[0], 127, 4 * width * height);
+            render_sum(texid, frame->color->data[0], screen);
+        } else {
+            glm::mat4 targetView = get_viewMatrix();
+            if (targetView != frame->viewMatrix){
+                render_warp(frame, warpedFrame.data(), targetView);
+                render_sum(texid, warpedFrame.data(), screen);
+            } else {
+                render_sum(texid, frame->color->data[0], screen);
+            }
+        }
         release_texture(texid);
         display();
     }

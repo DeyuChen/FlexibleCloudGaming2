@@ -1,4 +1,4 @@
-#version 130
+#version 300 es
 in vec2 in_Position;
 in lowp vec3 in_Color;
 in float in_Depth;

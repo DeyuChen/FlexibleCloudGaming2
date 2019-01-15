@@ -108,7 +108,7 @@ int main(int argc, char *argv[]){
 
         message.Clear();
         string frameStr((char*)pkt->data, pkt->size);
-        message.set_diff_frame(frameStr);
+        message.mutable_diff_frame()->set_color(frameStr);
 
         // piggyback some vsplits
         // TODO: dynamically determine how many vsplits to send

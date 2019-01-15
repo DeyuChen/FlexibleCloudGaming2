@@ -45,18 +45,21 @@ public:
     int get_nvertices(int id){ return pmeshes[id]->get_nvertices(); }
     bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
-    int render_diff(RenderTarget target);
+    int render_diff(RenderTarget target, float* depth = NULL);
     int render_simp(RenderTarget target);
     int render_sum(int simpTexid, unsigned char* diff, RenderTarget target);
     void display();
     void read_pixels(int texid, unsigned char* buf, GLenum format = GL_RGBA);
+    glm::mat4 get_viewMatrix();
     void release_texture(int texid);
 
 protected:
     int render_mesh(MeshMode mode, RenderTarget target);
     int render_textures(int programid, int texid_1, int texid_2, RenderTarget target);
+    void render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm::mat4 &targetView);
 
     void init_pixel_buffer();
+    void init_warp_buffer();
     bool init_frame_buffer();
     bool init_render_program();
     bool init_warp_program();
@@ -89,8 +92,10 @@ protected:
     GLint uLocViewPos;
     GLint uLocLightPos;
     GLint uLocLightColor;
+    GLint uLocMVP;
 
     VBufferInfo pixelBuffer;
+    VBufferInfo warpBuffer;
 
     GLuint frameBuffer;
     GLuint depthBuffer;
@@ -102,6 +107,9 @@ protected:
     std::vector<PMeshRenderer*> pmeshes;
 
     std::priority_queue<int, std::vector<int>, std::greater<int>> available_meshID;
+    
+    std::vector<float> simpDepth;
+    std::vector<float> fullDepth;
 };
 
 class glWindowServerMT : public glWindow {
@@ -133,7 +141,7 @@ public:
     glWindowClientMT(const char* title, int width, int height, PresentMode &pmode,
                      Queue<proto::CommProto*> &msgToUpdate,
                      Queue<proto::CommProto*> &msgToSend,
-                     Queue<AVFrame*> &frameDecoded,
+                     Queue<Frame3D*> &frameDecoded,
                      Queue<bool> &tokenBucket);
 
 private:
@@ -148,8 +156,10 @@ private:
 
     Queue<proto::CommProto*> &msgToUpdate;
     Queue<proto::CommProto*> &msgToSend;
-    Queue<AVFrame*> &frameDecoded;
+    Queue<Frame3D*> &frameDecoded;
     Queue<bool> &tokenBucket;
+
+    std::vector<unsigned char> warpedFrame;
 
     SDL_Thread *thread;
 };

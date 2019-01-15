@@ -112,12 +112,17 @@ void EncoderMT::encoder_service(){
     while (true){
         Frame3D *frame = frameToEncode.get();
         encode(frame->color, pkt);
+
+        // TODO: depth needs to be encoded
+        // maybe try retrieving 8 bits resolution depth and encode it as grayscale frame
+        proto::CommProto *msg = msgPool.get();
+        proto::Frame3DProto *diff_frame = msg->mutable_diff_frame();
+        diff_frame->set_view_matrix(string((char*)glm::value_ptr(frame->viewMatrix), 16 * sizeof(float)));
+        diff_frame->set_depth(string((char*)(frame->depth), width * height * sizeof(float)));
         framePool.put(frame);
 
-        proto::CommProto *msg = msgPool.get();
-        string frameStr((char*)pkt->data, pkt->size);
+        diff_frame->set_color(string((char*)pkt->data, pkt->size));
         av_packet_unref(pkt);
-        msg->set_diff_frame(frameStr);
         msgToSend.put(msg);
     }
 }
@@ -185,7 +190,7 @@ bool Decoder::decode(AVFrame *frameRGB, AVPacket *pkt){
 DecoderMT::DecoderMT(const char *codecName, int width, int height,
                      Pool<proto::CommProto*> &msgPool,
                      Queue<proto::CommProto*> &msgReceived,
-                     Queue<AVFrame*> &frameDecoded)
+                     Queue<Frame3D*> &frameDecoded)
     : Decoder(codecName, width, height),
       msgPool(msgPool), msgReceived(msgReceived),
       frameDecoded(frameDecoded)
@@ -208,11 +213,15 @@ DecoderMT::~DecoderMT(){
 void DecoderMT::decoder_service(){
     while (true){
         proto::CommProto *msg = msgReceived.get();
-        pkt->size = msg->diff_frame().size();
-        pkt->data = (uint8_t*)msg->diff_frame().c_str();
-        AVFrame *frame = frameDecoded.get();
-        decode(frame, pkt);
+        pkt->size = msg->diff_frame().color().size();
+        const proto::Frame3DProto &diff_frame = msg->diff_frame();
+        pkt->data = (uint8_t*)diff_frame.color().c_str();
+        Frame3D *frame = frameDecoded.get();
+        decode(frame->color, pkt);
         av_packet_unref(pkt);
+        memcpy(glm::value_ptr(frame->viewMatrix), diff_frame.view_matrix().c_str(), 16 * sizeof(float));
+        memcpy(frame->depth, diff_frame.depth().c_str(), width * height * sizeof(float));
+
         msg->Clear();
         msgPool.put(msg);
         frameDecoded.put(frame);

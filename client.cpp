@@ -134,8 +134,8 @@ int main(int argc, char *argv[]){
         message.Clear();
         comm.recv_msg(message);
 
-        pkt->size = message.diff_frame().size();
-        pkt->data = (uint8_t*)message.diff_frame().c_str();
+        pkt->size = message.diff_frame().color().size();
+        pkt->data = (uint8_t*)message.diff_frame().color().c_str();
         decoder.decode(frame, pkt);
         av_packet_unref(pkt);
 

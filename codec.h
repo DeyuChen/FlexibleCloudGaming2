@@ -57,7 +57,7 @@ public:
     Decoder(const char *codecName, int width, int height);
     bool decode(AVFrame *frameRGB, AVPacket *pkt);
 
-private:
+protected:
     std::string codecName;
     int width, height;
 
@@ -72,7 +72,7 @@ public:
     DecoderMT(const char *codecName, int width, int height,
               Pool<proto::CommProto*> &msgPool,
               Queue<proto::CommProto*> &msgReceived,
-              Queue<AVFrame*> &frameDecoded);
+              Queue<Frame3D*> &frameDecoded);
 
     ~DecoderMT();
 
@@ -85,7 +85,7 @@ private:
 
     Pool<proto::CommProto*> &msgPool;
     Queue<proto::CommProto*> &msgReceived;
-    Queue<AVFrame*> &frameDecoded;
+    Queue<Frame3D*> &frameDecoded;
 
     pthread_t thread;
 };

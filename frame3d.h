@@ -9,7 +9,7 @@ public:
     Frame3D(int width, int height, int format);
     ~Frame3D();
 
-    glm::mat4 viewPoint;    // projection * view
+    glm::mat4 viewMatrix;    // projection * view
     AVFrame *color;
     float *depth;
 };
