@@ -337,9 +337,9 @@ void glWindow::render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm
     gluLookAt(0, 0, 0, 0, 0, -1, 0, 1, 0);
 
     glBindVertexArray(warpBuffer.VAO[0]);
-    glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(float), nPixels * sizeof(float), frame->color->data[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, 3 * nPixels * sizeof(float), nPixels * sizeof(float), frame->depth);
+    glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[1]);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, nPixels * sizeof(float), frame->color->data[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, nPixels * sizeof(float), nPixels * sizeof(float), frame->depth);
 
     glm::mat4 mvp = targetView * glm::inverse(frame->viewMatrix);
     glUniformMatrix4fv(uLocMVP, 1, GL_FALSE, glm::value_ptr(mvp));
@@ -439,17 +439,17 @@ void glWindow::init_warp_buffer(){
         return;
 
     warpBuffer.VAO.resize(1);
-    warpBuffer.VBO.resize(1);
+    warpBuffer.VBO.resize(2);
     warpBuffer.IBO.resize(1);
     glGenVertexArrays(1, warpBuffer.VAO.data());
-    glGenBuffers(1, warpBuffer.VBO.data());
+    glGenBuffers(2, warpBuffer.VBO.data());
     glGenBuffers(1, warpBuffer.IBO.data());
 
     glBindVertexArray(warpBuffer.VAO[0]);
 
     // preset pixel 2D locations
     glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[0]);
-    vector<float> pixelVertices(4 * nPixels);
+    vector<float> pixelVertices(2 * nPixels);
     int count = 0;
     for (int i = 0; i < height; i++){
         for (int j = 0; j < width; j++){
@@ -457,16 +457,18 @@ void glWindow::init_warp_buffer(){
             pixelVertices[count++] = (float)i * 2.0 / height - 1.0;
         }
     }
-    glBufferData(GL_ARRAY_BUFFER, 4 * nPixels * sizeof(float), pixelVertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(float), pixelVertices.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
     // colors
-    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(float), (void*)(2 * nPixels * sizeof(float)));
+    glBindBuffer(GL_ARRAY_BUFFER, warpBuffer.VBO[1]);
+    glBufferData(GL_ARRAY_BUFFER, 2 * nPixels * sizeof(float), NULL, GL_STREAM_DRAW);
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // depths
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)(3 * nPixels * sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)(nPixels * sizeof(float)));
     glEnableVertexAttribArray(2);
 
     // index

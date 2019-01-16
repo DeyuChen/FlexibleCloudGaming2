@@ -16,9 +16,9 @@ uniform bool hasTex;
 uniform bool hasColor;
 
 void main(void){
-    ex_FragPos = vec3(model * vec4(in_Position, 1.0));
-    ex_Normal = mat3(transpose(inverse(view * model))) * in_Normal;
-    gl_Position = projection * view * vec4(ex_FragPos, 1.0);
+    ex_FragPos = mat3(model) * in_Position;
+    ex_Normal = mat3(view) * (mat3(model) * in_Normal);
+    gl_Position = projection * (view * vec4(ex_FragPos, 1.0));
 
     if (hasTex){
         ex_TexCoord = in_TexCoord;
