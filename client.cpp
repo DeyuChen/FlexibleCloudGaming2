@@ -129,7 +129,7 @@ int main(int argc, char *argv[]){
 
         comm.send_msg(message);
 
-        int texid = window.render_simp(texture);
+        auto [colorTex, depthTex] = window.render_simp(texture_renderbuffer);
 
         message.Clear();
         comm.recv_msg(message);
@@ -141,8 +141,8 @@ int main(int argc, char *argv[]){
 
         if (get_present_mode() == simplified)
             memset(frame->data[0], 127, 4 * width * height);
-        window.render_sum(texid, frame->data[0], screen);
-        window.release_texture(texid);
+        window.render_sum(colorTex, frame->data[0], screen);
+        window.release_color_texture(colorTex);
 
         window.display();
 

@@ -89,7 +89,8 @@ int main(int argc, char *argv[]){
         auto begin = chrono::high_resolution_clock::now();
 #endif
 
-        int texid = window.render_diff(texture);
+        auto [texid, dummy] = window.render_diff(texture_renderbuffer);
+        assert(dummy == 0);
         //window.display();
 
 #ifdef SHOW_RENDERING_TIME
@@ -101,7 +102,7 @@ int main(int argc, char *argv[]){
 
         // encoding
         window.read_pixels(texid, frame->data[0]);
-        window.release_texture(texid);
+        window.release_color_texture(texid);
         if (encoder.encode(frame, pkt)){
             //cout << pkt->size << endl;
         }

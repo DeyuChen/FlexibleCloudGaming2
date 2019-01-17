@@ -4,7 +4,7 @@
 
 const float MIN_DISTANCE = 0.1f;
 const float MAX_DISTANCE = 100.0f;
-const int HOLE_FILL_ROUND = 1;
+const int HOLE_FILL_ROUND = 0;
 
 using namespace std;
 
@@ -155,34 +155,23 @@ void glWindow::remove_pmesh(int id){
     }
 }
 
-int glWindow::render_diff(RenderTarget target, float* depth){
+tuple<int, int> glWindow::render_diff(RenderTarget target){
     if (!diffProgram.id && !init_diff_program()){
-        return -1;
+        return {-1, -1};
     }
-    // TODO: depth retrieving is too slow, need to find a way to speed it up
-    // maybe using gl_FragCoord to write to texture in frag shader
-    int simpTexid = render_mesh(simp, texture);
-    if (depth != NULL){
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, simpDepth.data());
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-    int fullTexid = render_mesh(full, texture);
-    if (depth != NULL){
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, fullDepth.data());
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-    for (int i = 0; i < nPixels; i++){
-        depth[i] = min(simpDepth[i], fullDepth[i]);
-    }
-    int outTexid = render_textures(diffProgram.id, fullTexid, simpTexid, target);
-    texturePool.put(simpTexid);
-    texturePool.put(fullTexid);
-    return outTexid;
+    auto [simpColorTex, simpDepthTex] = render_mesh(simp, texture_texture);
+    auto [fullColorTex, fullDepthTex] = render_mesh(full, texture_texture);
+    glEnable(GL_DEPTH_TEST);
+    auto [outColor, outDepth] = render_textures(diffProgram.id, {fullColorTex, simpColorTex, fullDepthTex, simpDepthTex}, target);
+    glDisable(GL_DEPTH_TEST);
+    colorTexPool.put(simpColorTex);
+    colorTexPool.put(fullColorTex);
+    depthTexPool.put(simpDepthTex);
+    depthTexPool.put(fullDepthTex);
+    return {outColor, outDepth};
 }
 
-int glWindow::render_simp(RenderTarget target){
+tuple<int, int> glWindow::render_simp(RenderTarget target){
     return render_mesh(simp, target);
 }
 
@@ -190,12 +179,13 @@ int glWindow::render_sum(int simpTexid, unsigned char* diff, RenderTarget target
     if (!sumProgram.id && !init_sum_program()){
         return -1;
     }
-    int diffTexid = texturePool.get();
+    int diffTexid = colorTexPool.get();
     glBindTexture(GL_TEXTURE_2D, diffTexid);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, diff);
     glGenerateMipmap(GL_TEXTURE_2D);
-    int outTexid = render_textures(sumProgram.id, simpTexid, diffTexid, target);
-    texturePool.put(diffTexid);
+    auto [outTexid, dummy] = render_textures(sumProgram.id, {simpTexid, diffTexid}, target);
+    assert(dummy == 0);
+    colorTexPool.put(diffTexid);
     return outTexid;
 }
 
@@ -209,6 +199,15 @@ void glWindow::read_pixels(int texid, unsigned char* buf, GLenum format){
         glGetTexImage(GL_TEXTURE_2D, 0, format, GL_UNSIGNED_BYTE, buf);
     } else {
         glReadPixels(0, 0, width, height, format, GL_UNSIGNED_BYTE, buf);
+    }
+}
+
+void glWindow::read_depth(int texid, float* buf){
+    if (texid){
+        glBindTexture(GL_TEXTURE_2D, texid);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT, buf);
+    } else {
+        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, buf);
     }
 }
 
@@ -229,21 +228,29 @@ glm::mat4 glWindow::get_viewMatrix(){
     return projection * view;
 }
 
-void glWindow::release_texture(int texid){
-    texturePool.put(texid);
+void glWindow::release_color_texture(int texid){
+    colorTexPool.put(texid);
 }
 
-int glWindow::render_mesh(MeshMode mode, RenderTarget target){
-    int outTexid;
+void glWindow::release_depth_texture(int texid){
+    depthTexPool.put(texid);
+}
+
+tuple<int, int> glWindow::render_mesh(MeshMode mode, RenderTarget target){
+    int outColorTex = 0, outDepthTex = 0;
     if (target == screen){
         // render to screen
-        outTexid = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else if (target == texture){
-        // render to texture
-        outTexid = texturePool.get();
+    } else {
+        // render color to texture
+        outColorTex = colorTexPool.get();
         glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outColorTex, 0);
+        if (target == texture_texture){
+            // render depth to texture
+            outDepthTex = depthTexPool.get();
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, outDepthTex, 0);
+        }
     }
 
     glUseProgram(renderProgram.id);
@@ -276,28 +283,37 @@ int glWindow::render_mesh(MeshMode mode, RenderTarget target){
 
     glUniform1i(glGetUniformLocation(renderProgram.id, "Texture"), 0);
 
+    glEnable(GL_DEPTH_TEST);
     for (auto pmesh : pmeshes){
         pmesh->render(renderProgram.id, mode);
     }
+    glDisable(GL_DEPTH_TEST);
 
     glPopMatrix();
     glUseProgram(0);
+    if (target == texture_texture){
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    return outTexid;
+    return {outColorTex, outDepthTex};
 }
 
-int glWindow::render_textures(int programid, int texid_1, int texid_2, RenderTarget target){
-    int outTexid;
+tuple<int, int> glWindow::render_textures(int programid, vector<int> texids, RenderTarget target){
+    int outColorTex = 0, outDepthTex = 0;
     if (target == screen){
         // render to screen
-        outTexid = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else if (target == texture){
-        // render to texture
-        outTexid = texturePool.get();
+    } else {
+        // render color to texture
+        outColorTex = colorTexPool.get();
         glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outColorTex, 0);
+        if (target == texture_texture){
+            // render depth to texture
+            outDepthTex = depthTexPool.get();
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, outDepthTex, 0);
+        }
     }
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -305,12 +321,23 @@ int glWindow::render_textures(int programid, int texid_1, int texid_2, RenderTar
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(programid);
+
+    assert(texids.size() >= 2);
     glUniform1i(glGetUniformLocation(programid, "Texture0"), 0);
     glUniform1i(glGetUniformLocation(programid, "Texture1"), 1);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texid_1);
+    glBindTexture(GL_TEXTURE_2D, texids[0]);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, texid_2);
+    glBindTexture(GL_TEXTURE_2D, texids[1]);
+
+    if (texids.size() == 4){
+        glUniform1i(glGetUniformLocation(programid, "Texture2"), 2);
+        glUniform1i(glGetUniformLocation(programid, "Texture3"), 3);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, texids[2]);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, texids[3]);
+    }
 
     glBindVertexArray(pixelBuffer.VAO[0]);
 
@@ -318,16 +345,19 @@ int glWindow::render_textures(int programid, int texid_1, int texid_2, RenderTar
 
     glBindVertexArray(0);
     glUseProgram(0);
+    if (target == texture_texture){
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    return outTexid;
+    return {outColorTex, outDepthTex};
 }
 
 void glWindow::render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm::mat4 &targetView){
     if (!warpProgram.id && !init_warp_program())
         return;
 
-    int outTexid = texturePool.get();
+    int outTexid = colorTexPool.get();
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTexid, 0);
 
@@ -348,7 +378,9 @@ void glWindow::render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm
     glClearColor(grey, grey, grey, 1.0f);
     glClearDepth(1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
     glDrawElements(GL_POINTS, nPixels, GL_UNSIGNED_INT, NULL);
+    glDisable(GL_DEPTH_TEST);
     glBindTexture(GL_TEXTURE_2D, outTexid);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, warpedFrame);
 
@@ -395,7 +427,7 @@ void glWindow::render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm
     glPopMatrix();
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    release_texture(outTexid);
+    release_color_texture(outTexid);
 }
 
 void glWindow::init_pixel_buffer(){
@@ -492,18 +524,34 @@ bool glWindow::init_frame_buffer(){
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
 
-    renderedTextures.resize(3);
-    glGenTextures(renderedTextures.size(), renderedTextures.data());
-    for (int i = 0; i < renderedTextures.size(); i++){
-        glBindTexture(GL_TEXTURE_2D, renderedTextures[i]);
+    depthTextures.resize(3);
+    glGenTextures(depthTextures.size(), depthTextures.data());
+    for (int i = 0; i < depthTextures.size(); i++){
+        glBindTexture(GL_TEXTURE_2D, depthTextures[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+    depthTexPool.set_capacity(depthTextures.size());
+    for (auto tex : depthTextures){
+        depthTexPool.put(tex);
+    }
+
+    colorTextures.resize(3);
+    glGenTextures(colorTextures.size(), colorTextures.data());
+    for (int i = 0; i < colorTextures.size(); i++){
+        glBindTexture(GL_TEXTURE_2D, colorTextures[i]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
-
-    texturePool.set_capacity(renderedTextures.size());
-    for (auto tex : renderedTextures){
-        texturePool.put(tex);
+    colorTexPool.set_capacity(colorTextures.size());
+    for (auto tex : colorTextures){
+        colorTexPool.put(tex);
     }
 
     drawBuffers = {GL_COLOR_ATTACHMENT0};
@@ -636,9 +684,7 @@ bool glWindow::init_sum_program(){
 bool glWindow::init_OpenGL(){
     glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
     glClearDepth(1.0f);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    //glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
     if (!init_render_program())
         return false;
@@ -712,9 +758,11 @@ void glWindowServerMT::render_service(){
         msgPool.put(msg);
 
         Frame3D *frame = framePool.get();
-        int texid = render_diff(texture, frame->depth);
-        read_pixels(texid, frame->color->data[0]);
-        release_texture(texid);
+        auto [colorTex, depthTex] = render_diff(texture_texture);
+        read_pixels(colorTex, frame->color->data[0]);
+        read_depth(depthTex, frame->depth);
+        release_color_texture(colorTex);
+        release_depth_texture(depthTex);
         frame->viewMatrix = get_viewMatrix();
         frameToEncode.put(frame);
     }
@@ -748,22 +796,22 @@ void glWindowClientMT::render_service(){
 
         // use token bucket for rate control
         // warp old diff frame if diff frame does not arrive on time
-        int texid = render_simp(texture);
+        auto [colorTex, depthTex] = render_simp(texture_renderbuffer);
         tokenBucket.get();
         Frame3D *frame = frameDecoded.peek_back();
         if (pmode == simplified){
             memset(frame->color->data[0], 127, 4 * width * height);
-            render_sum(texid, frame->color->data[0], screen);
+            render_sum(colorTex, frame->color->data[0], screen);
         } else {
             glm::mat4 targetView = get_viewMatrix();
             if (targetView != frame->viewMatrix){
                 render_warp(frame, warpedFrame.data(), targetView);
-                render_sum(texid, warpedFrame.data(), screen);
+                render_sum(colorTex, warpedFrame.data(), screen);
             } else {
-                render_sum(texid, frame->color->data[0], screen);
+                render_sum(colorTex, frame->color->data[0], screen);
             }
         }
-        release_texture(texid);
+        release_color_texture(colorTex);
         display();
     }
 }

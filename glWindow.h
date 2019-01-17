@@ -11,6 +11,7 @@
 #include <string>
 #include <queue>
 #include <unordered_map>
+#include <tuple>
 #include <pthread.h>
 
 enum PresentMode {
@@ -20,7 +21,8 @@ enum PresentMode {
 
 enum RenderTarget {
     screen,
-    texture
+    texture_renderbuffer,
+    texture_texture
 };
 
 struct ShaderProgram {
@@ -45,17 +47,19 @@ public:
     int get_nvertices(int id){ return pmeshes[id]->get_nvertices(); }
     bool set_nvertices(int id, int nv){ return pmeshes[id]->set_nvertices(nv); }
 
-    int render_diff(RenderTarget target, float* depth = NULL);
-    int render_simp(RenderTarget target);
+    std::tuple<int, int> render_diff(RenderTarget target);
+    std::tuple<int, int> render_simp(RenderTarget target);
     int render_sum(int simpTexid, unsigned char* diff, RenderTarget target);
     void display();
     void read_pixels(int texid, unsigned char* buf, GLenum format = GL_RGBA);
+    void read_depth(int texid, float* buf);
     glm::mat4 get_viewMatrix();
-    void release_texture(int texid);
+    void release_color_texture(int texid);
+    void release_depth_texture(int texid);
 
 protected:
-    int render_mesh(MeshMode mode, RenderTarget target);
-    int render_textures(int programid, int texid_1, int texid_2, RenderTarget target);
+    std::tuple<int, int> render_mesh(MeshMode mode, RenderTarget target);
+    std::tuple<int, int> render_textures(int programid, std::vector<int> texids, RenderTarget target);
     void render_warp(Frame3D* frame, unsigned char* warpedFrame, const glm::mat4 &targetView);
 
     void init_pixel_buffer();
@@ -99,10 +103,12 @@ protected:
 
     GLuint frameBuffer;
     GLuint depthBuffer;
-    std::vector<GLuint> renderedTextures;
+    std::vector<GLuint> colorTextures;
+    std::vector<GLuint> depthTextures;
     std::vector<GLenum> drawBuffers;
 
-    Pool<GLuint> texturePool;
+    Pool<GLuint> colorTexPool;
+    Pool<GLuint> depthTexPool;
 
     std::vector<PMeshRenderer*> pmeshes;
 
