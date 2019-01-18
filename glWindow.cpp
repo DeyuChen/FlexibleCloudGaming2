@@ -735,8 +735,8 @@ GLuint glWindow::load_shader_from_file(string filename, GLenum shaderType){
 }
 
 glWindowServerMT::glWindowServerMT(const char* title, int width, int height,
-                                   Pool<proto::CommProto*> &msgPool,
-                                   Queue<proto::CommProto*> &msgToRender,
+                                   Pool<bool> &msgPool,
+                                   Queue<bool> &msgToRender,
                                    Pool<Frame3D*> &framePool,
                                    Queue<Frame3D*> &frameToEncode)
     : glWindow(title, width, height),
@@ -749,21 +749,18 @@ glWindowServerMT::glWindowServerMT(const char* title, int width, int height,
 void glWindowServerMT::render_service(){
     create_window();
 
-    // TODO: the server should be able to drop some rendering task if it is lag behind too much
     while (true){
-        proto::CommProto *msg = msgToRender.get();
-        update_state();
-        set_nvertices(msg->pmesh(0).id(), msg->pmesh(0).nvertices());
-        msg->Clear();
-        msgPool.put(msg);
+        msgToRender.get();
+        auto [colorTex, depthTex] = render_diff(texture_texture);
+        glm::mat4 viewMatrix = get_viewMatrix();
+        msgPool.put(true);
 
         Frame3D *frame = framePool.get();
-        auto [colorTex, depthTex] = render_diff(texture_texture);
         read_pixels(colorTex, frame->color->data[0]);
         read_depth(depthTex, frame->depth);
         release_color_texture(colorTex);
         release_depth_texture(depthTex);
-        frame->viewMatrix = get_viewMatrix();
+        frame->viewMatrix = viewMatrix;
         frameToEncode.put(frame);
     }
 }

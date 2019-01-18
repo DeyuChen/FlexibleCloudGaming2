@@ -87,6 +87,7 @@ public:
     void non_blocking_put(const T &t);
     T peek_back();
     T peek_front();
+    bool is_full();
 
 private:
     std::queue<T> available;
@@ -172,6 +173,14 @@ T Queue<T>::peek_front(){
     T t = available.front();
     pthread_mutex_unlock(&mutex);
     return t;
+}
+
+template<class T>
+bool Queue<T>::is_full(){
+    pthread_mutex_lock(&mutex);
+    bool full = available.size() >= capacity;
+    pthread_mutex_unlock(&mutex);
+    return full;
 }
 
 #endif

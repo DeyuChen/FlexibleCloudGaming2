@@ -80,7 +80,7 @@ int main(int argc, char *argv[]){
     }
 
     // token bucket for rate control
-    TokenGenerator tokenGen(tokenBucket, 20);
+    TokenGenerator tokenGen(tokenBucket, 30);
 
 #ifdef SHOW_FRAME_DELAY
     auto begin = chrono::high_resolution_clock::now();

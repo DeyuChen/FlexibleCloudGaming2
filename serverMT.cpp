@@ -24,10 +24,11 @@ int main(int argc, char *argv[]){
     }
 
     Pool<proto::CommProto*> sendMsgPool(1);
-    Pool<proto::CommProto*> receiveMsgPool(1);
+    Pool<proto::CommProto*> receiveMsgPool(5);
+    Pool<bool> renderMsgPool(1);
     Queue<proto::CommProto*> msgToSend(1);
-    Queue<proto::CommProto*> msgReceived(1);
-    Queue<proto::CommProto*> msgToRender(1);
+    Queue<proto::CommProto*> msgReceived(3);
+    Queue<bool> msgToRender(1);
     Queue<tuple<int, int, string>> vsplitToSend(50);
     Pool<Frame3D*> framePool(1);
     Queue<Frame3D*> frameToEncode(1);
@@ -38,10 +39,12 @@ int main(int argc, char *argv[]){
     proto::PMeshProto *pmeshProto;
 
     sendMsgPool.put(new proto::CommProto());
-    receiveMsgPool.put(new proto::CommProto());
+    for (int i = 0; i < 5; i++)
+        receiveMsgPool.put(new proto::CommProto());
+    renderMsgPool.put(true);
 
     // initializing SDL window which also handles all opengl rendering
-    glWindowServerMT window("Server", width, height, receiveMsgPool, msgToRender, framePool, frameToEncode);
+    glWindowServerMT window("Server", width, height, renderMsgPool, msgToRender, framePool, frameToEncode);
 
     // initializing the video encoder
     EncoderMT encoder("libx264", width, height, 8000000, sendMsgPool, msgToSend, framePool, frameToEncode);
@@ -78,16 +81,26 @@ int main(int argc, char *argv[]){
             cout << "Client disconnected, terminating" << endl;
             break;
         }
+
+        renderMsgPool.get();
         int x = msg->mouse_x();
         int y = msg->mouse_y();
         window.mouse_motion(x, y);
-
         for (int i = 0; i < msg->key_event_size(); i++){
             bool down = msg->key_event(i).down();
             int key = msg->key_event(i).key();
             window.key_event(down, key, x, y);
         }
-        msgToRender.put(msg);
+        window.set_nvertices(msg->pmesh(0).id(), msg->pmesh(0).nvertices());
+        msg->Clear();
+        receiveMsgPool.put(msg);
+        window.update_state();
+
+        // drop rendering tasks if the server is lagging behind
+        if (msgReceived.is_full())
+            renderMsgPool.put(true);
+        else
+            msgToRender.put(true);
     }
 
     window.kill_window();

@@ -121,8 +121,8 @@ protected:
 class glWindowServerMT : public glWindow {
 public:
     glWindowServerMT(const char* title, int width, int height,
-                     Pool<proto::CommProto*> &msgPool,
-                     Queue<proto::CommProto*> &msgToRender,
+                     Pool<bool> &msgPool,
+                     Queue<bool> &msgToRender,
                      Pool<Frame3D*> &framePool,
                      Queue<Frame3D*> &frameToEncode);
 
@@ -134,8 +134,8 @@ private:
     }
     void render_service();
 
-    Pool<proto::CommProto*> &msgPool;
-    Queue<proto::CommProto*> &msgToRender;
+    Pool<bool> &msgPool;
+    Queue<bool> &msgToRender;
     Pool<Frame3D*> &framePool;
     Queue<Frame3D*> &frameToEncode;
 
